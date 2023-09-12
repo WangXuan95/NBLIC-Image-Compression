@@ -1,22 +1,23 @@
 // Copyright https://github.com/WangXuan95
 // source: https://github.com/WangXuan95/JPEG-LS_extension
 // 
-// A implementation of JPEG-LS extension (ITU-T T.870) image encoder/decoder
+// A enhanced implementation of JPEG-LS extension (ITU-T T.870) image encoder/decoder
+// which will get a higher compression ratio than original JPEG-LS extension
 // see https://www.itu.int/rec/T-REC-T.870/en
-// Warning: This implementation is not fully compliant with ITU-T T.870 standard.
+// Warning: This implementation is not compliant with ITU-T T.870 standard.
+//
+// This is an example, including a main() function
 //
 
 
 #include <stdio.h>
 
-
-extern int JLSxEncode (unsigned char *pbuf, int *img, int *imgrcon, int ysz, int xsz, int BPP, int NEAR);     // import from JLSx.c
-extern int JLSxDecode (unsigned char *pbuf, int *img, int *pysz, int *pxsz, int *pBPP, int *pNEAR);           // import from JLSx.c
+#include "JLSx.h"
 
 
 
 // return:   -1:failed   0:success
-int loadPGMfile (const char *filename, int *img, int *pysz, int *pxsz, int *pBPP) {
+int loadPGMfile (const char *filename, unsigned char *img, int *pysz, int *pxsz) {
     int i, maxval=-1;
     FILE *fp;
 
@@ -51,35 +52,20 @@ int loadPGMfile (const char *filename, int *img, int *pysz, int *pxsz, int *pBPP
         return -1;
     }
     
-    if ((*pxsz) < 1 || (*pysz) < 1 || maxval < 1 || maxval > 65535) {
+    if ((*pxsz) < 1 || (*pysz) < 1 || maxval < 1 || maxval > 255) {    // PGM format error or not support
         fclose(fp);
         return -1;
     }
     
-    for ( (*pBPP)=1 ; (1<<(*pBPP))<=maxval ; (*pBPP)++ );
-    
-    fgetc(fp);                                                 // skip a white char
+    fgetc(fp);                                                         // skip a white char
     
     for (i=0; i<(*pxsz)*(*pysz); i++) {
-        int pixel;
-        
-        if (feof(fp)) {                                        // pixels not enough
+        if (feof(fp)) {                                                // pixels not enough
             fclose(fp);
             return -1;
         }
         
-        pixel = fgetc(fp) & 0xFF;
-        if (maxval >= 256) {                                   // two bytes per pixel
-            pixel <<= 8;
-            pixel += fgetc(fp) & 0xFF;
-        }
-        
-        if (pixel < 0)
-            pixel = 0;
-        if (pixel > maxval)
-            pixel = maxval;
-        
-        *(img++) = pixel;
+        *(img++) = (fgetc(fp) & 0xFF);
     }
 
     fclose(fp);
@@ -89,35 +75,21 @@ int loadPGMfile (const char *filename, int *img, int *pysz, int *pxsz, int *pBPP
 
 
 // return:   -1:failed   0:success
-int writePGMfile (const char *filename, const int *img, const int ysz, const int xsz, const int BPP) {
-    int i, maxval;
+int writePGMfile (const char *filename, const unsigned char *img, const int ysz, const int xsz) {
+    int i;
     FILE *fp;
     
-    if (xsz < 1 || ysz < 1 || BPP < 1 || BPP > 16)
+    if (xsz < 1 || ysz < 1)
         return -1;
-    
-    maxval = (1<<BPP) - 1;
     
     if ( (fp = fopen(filename, "wb")) == NULL )
         return -1;
 
-    fprintf(fp, "P5\n%d %d\n%d\n", xsz, ysz, maxval);
-
+    fprintf(fp, "P5\n%d %d\n255\n", xsz, ysz);
+    
     for (i=0; i<xsz*ysz; i++) {
-        int pixel = *(img++);
-        
-        if (pixel < 0)
-            pixel = 0;
-        if (pixel > maxval)
-            pixel = maxval;
-        
-        if (maxval >= 256)                                     // two bytes per pixel
-            if ( fputc( ((pixel>>8)&0xFF) , fp) == EOF ) {
-                fclose(fp);
-                return -1;
-            }
-        
-        if ( fputc( (pixel&0xFF) , fp) == EOF ) {
+        unsigned char pixel = *(img++);
+        if ( fputc( pixel , fp) == EOF ) {
             fclose(fp);
             return -1;
         }
@@ -192,21 +164,21 @@ int suffix_match (const char *string, const char *suffix) {
 
 
 
-#define   MAX_YSZ            8192
-#define   MAX_XSZ            8192
-#define   JLS_LENGTH_LIMIT   (MAX_YSZ*MAX_XSZ*4)
+#define   MAX_YSZ            16384
+#define   MAX_XSZ            16384
+#define   JLS_LENGTH_LIMIT   (MAX_YSZ*MAX_XSZ*3)
 
 
 
 int main (int argc, char **argv) {
 
-    static           int img        [MAX_YSZ*MAX_XSZ];
-    static           int imgrcon    [MAX_YSZ*MAX_XSZ];
+    static unsigned char img        [MAX_YSZ*MAX_XSZ];
+    static unsigned char imgrcon    [MAX_YSZ*MAX_XSZ];
     static unsigned char jls_buffer [JLS_LENGTH_LIMIT] = {0};
 
     const char *src_fname=NULL, *dst_fname=NULL;
 
-    int ysz=-1 , xsz=-1 , bpp=-1 , near=0 , jls_length;
+    int ysz=-1 , xsz=-1 , near=0 , jls_length;
 
 
     printf("JPEG-LS extension ITU-T T.870 (a non-standard version)\n");
@@ -245,16 +217,15 @@ int main (int argc, char **argv) {
         
         printf("  near               = %d\n"       , near);
 
-        if ( loadPGMfile(src_fname, img, &ysz, &xsz, &bpp) ) {
+        if ( loadPGMfile(src_fname, img, &ysz, &xsz) ) {
             printf("open %s failed\n", src_fname);
             return -1;
         }
     
         printf("  image shape        = %d x %d\n"  , xsz , ysz );
-        printf("  original bpp       = %d\n"       , bpp );
-        printf("  original size      = %d bits\n"  , xsz*ysz*bpp );
+        printf("  original size      = %d Bytes\n" , xsz*ysz );
 
-        jls_length = JLSxEncode(jls_buffer, img, imgrcon, ysz, xsz, bpp, near);
+        jls_length = JLSxEncode(jls_buffer, img, imgrcon, ysz, xsz, near);
         
         if (jls_length < 0) {
             printf("encode failed\n");
@@ -262,7 +233,7 @@ int main (int argc, char **argv) {
         }
 
         printf("  compressed length  = %d Bytes\n" , jls_length );
-        printf("  compression ratio  = %.5f\n"     , xsz*ysz*bpp/(8.0*jls_length) );
+        printf("  compression ratio  = %.5f\n"     , (1.0*xsz*ysz)/jls_length );
         printf("  compressed bpp     = %.5f\n"     , (8.0*jls_length)/(xsz*ysz) );
 
         if ( writeBytesToFile(dst_fname, jls_buffer, jls_length) ) {
@@ -281,19 +252,18 @@ int main (int argc, char **argv) {
         
         printf("  JLS length         = %d Bytes\n" , jls_length );
 
-        if ( JLSxDecode(jls_buffer, img, &ysz, &xsz, &bpp, &near) < 0 ) {
+        if ( JLSxDecode(jls_buffer, img, &ysz, &xsz, &near) < 0 ) {
             printf("decode failed\n");
             return -1;
         }
     
         printf("  near               = %d\n"       , near);
         printf("  image shape        = %d x %d\n"  , xsz , ysz );
-        printf("  image bpp          = %d\n"       , bpp );
-        printf("  image size         = %d bits\n"  , xsz*ysz*bpp );
-        printf("  compression ratio  = %.5f\n"     , xsz*ysz*bpp/(8.0*jls_length) );
+        printf("  image size         = %d Bytes\n" , xsz*ysz );
+        printf("  compression ratio  = %.5f\n"     , (1.0*xsz*ysz)/jls_length );
         printf("  compressed bpp     = %.5f\n"     , (8.0*jls_length)/(xsz*ysz) );
 
-        if ( writePGMfile(dst_fname, img, ysz, xsz, bpp) ) {
+        if ( writePGMfile(dst_fname, img, ysz, xsz) ) {
             printf("write %s failed\n", dst_fname);
             return -1;
         }
