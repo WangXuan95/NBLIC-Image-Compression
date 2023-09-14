@@ -2,149 +2,161 @@
 
 # enhanced JPEG-LS extension
 
-An enhanced version of JPEG-LS extension (ITU-T T.870) image encoder/decoder.
+An enhanced version of JPEG-LS extension (ITU-T T.870) image encoder/decoder in C language.
 
-C 语言实现的增强型 JPEG-LS extension 图像编码/解码器 (比标准的 JPEG-LS extension 压缩率高)。
-
-无损压缩率暴打 PNG, JPEG2000, WEBP, HEIF, JPEG-LS baseline 等格式。
+Its lossless compression ratio is better than PNG, JPEG2000, WEBP, HEIF, JPEG-LS baseline, and JPEG-LS extension.
 
 　
 
 ## Why ?
 
-JPEG-LS 是一种无损/有损压缩标准。目前网上的 JPEG-LS 实现均为 JPEG-LS baseline (ITU-T T.87) [8]，而没有 JPEG-LS extension (ITU-T T.870) [1]
+JPEG-LS (JLS) is a lossless/lossy compression standard. There are 2 generations:
 
-我按照 JPEG-LS extension 标准文档编写了一个实现。并进行了一些改进，进一步提升压缩率。
+- JPEG-LS baseline (ITU-T T.87) [8]
+- JPEG-LS extension (ITU-T T.870) [1], which has a higher compression ratio.
 
-　
+The current publicly implementations online are all about JPEG-LS baseline, and none of them supports JPEG-LS extension.
 
-# 开发进度
+This repo is a enhanced implementation of JPEG-LS extension, which gets a higher compression ratio than original JPEG-LS extension.
 
-- [x] 灰度 8 bit 图像无损编码/解码：已充分测试，可以使用
-- [x] 灰度 8 bit 图像有损编码/解码：已充分测试，可以使用
-- [ ] 灰度 9-16 bit 图像无损编码/解码：尚未计划
-- [ ] 灰度 9-16 bit 图像无损编码/解码：尚未计划
-- [ ] 彩色图像编码/解码：尚未计划
+Note: due to my modification, this repo is not compatible with the original JPEG-LS extension standard.
 
 　
 
-# 代码文件概览
+# Development progress
 
-代码文件在目录 src 中。包括 2 个文件：
-
-- `JLSx.c` : 实现了 enhanced JPEG-LS extension 编码/解码的接口函数
-- `JLSx.h` : 包含了 enhanced JPEG-LS extension 编码/解码的接口函数的头文件
-- `JLSxMain.c` : 包含 `main` 函数的文件，调用 `JLSx.h` 进行图像文件的压缩
+- [x] grey 8 bit lossless image encode/decode
+- [x] grey 8 bit lossy (near-lossless) image encode/decode
 
 　
 
-# 编译
+# Code list
 
-### Windows (命令行)
+The code files are in pure-C, located in the [src](./src) folder:
 
-如果你把 Visual Studio 里的 C 编译器 (`cl.exe`) 加入了环境变量，也可以用命令行 (CMD) 进行编译。在本目录里运行命令：
+- `JLSx.c` : Implement a enhanced JLS extension encode/decode
+- `JLSx.h` : Expose the functions of enhanced JLS extension encode/decode to users.
+- `JLSxMain.c` : A main program with `main()` function, which call `JLSx.h` to achieve image file compression/decompression.
+
+　
+
+# Compile
+
+### Compile in Windows (CMD)
+
+If you add the Microsoft C compiler (`cl. exe`) of Visual Studio to environment variables, you can compile using the command line (CMD).
 
 ```bash
 cl src\*.c /FeJLSx.exe /Ox
 ```
 
-产生可执行文件 `JLSx.exe` 。这里我已经编译好的可执行文件放在了本库中，你可以直接使用。
+We'll get the executable file `JLSx.exe` . Here I've compiled it for you, you can use it directly.
 
-### Linux (命令行)
+### Compile in Linux
 
-在本目录里运行命令：
+Run the command in the current directory:
 
 ```bash
 gcc src/*.c -o JLSx -O3 -Wall
 ```
 
-产生可执行文件 `JLSx` 。这里我已经编译好的可执行文件放在了本库中，你可以直接使用。
+We'll get the binary file `JLSx` . Here I've compiled it for you, you can use it directly.
 
 　
 
-# 运行
+# Run image compression/decompression
 
-### Windows (命令行)
+This program can compress `.pgm` image file to `.jlsxn` image file. Or decompress  `.jlsxn` image file to `.pgm` image file.
+
+Note that `.pgm` is a simple uncompressed image format (see PGM Image File Specification [2]). PGM file format contains:
+
+- A simple header that contains the width, height, and depth of this image.
+- The raw pixel values of this image.
+
+### Run in Windows (CMD)
 
 用以下命令把图像文件 `1.pgm` 压缩为 `1.jlsxn`  。
 
-其中 `<near>` 值可以取 0\~9 。0 代表无损，≥1 代表有损，越大则压缩率越高，图像质量越差
+Use following command to compress `1.pgm` to `1.jlsxn`
 
 ```bash
 JLSx.exe 1.pgm 1.jlsxn <near>
 ```
 
-用以下命令把图像文件 `1.jlsxn`  解压为 `1.pgm` 。
+Where `[near]` is a optional parameter of range 0\~9 :
+
+- 0 : lossless (default)
+- 1\~9 : lossy. The larger the near value, the higher distortion and the lower compressed size.
+
+Use following command to compress `1.jlsxn` to `1.pgm`
 
 ```
 JLSx.exe 1.jlsxn 1.pgm
 ```
 
-> :warning: `.pgm` 是一种非压缩的灰度图像文件格式，详见 [2]
+### Run in Linux
 
-### Linux (命令行)
-
-命令格式与 Windows 类似，把可执行文件换成 `./JLSx` 即可。
+The command format is similar to Windows. You only need to replace the executable file name with `./JLSx` .
 
 　
 
-# 压缩率评估和比较
+# Evaluating compression ratio
 
-本节展示 **enhanced JPEG-LS extension** (本设计) 与其它无损图像压缩格式对比的结果。
+This section presents the results of comparing **enhanced JPEG-LS extension** (this design) to other lossless image compression formats.
 
-## 参与比较的格式
+## Formats for participating in comparison
 
-下表展示了参与对比的格式，以及它们是如何生成的。注意：它们都工作在无损压缩模式下。
+The following table shows the formats involved in the comparison and how they were generated. Note that they all operate in lossless compression mode.
 
-|              压缩格式               | 用什么软件来产生这种压缩格式? |           选项            |      选项含义      |
-| :---------------------------------: | :---------------------------: | :-----------------------: | :----------------: |
-|                 PNG                 |          OptiPNG [3]          |           `-o7`           |     最高压缩率     |
-|              JPEG2000               |    Python Pillow 9.5.0 [4]    |   `irreversible=False`    |      无损压缩      |
-|                WEBP                 |    Python Pillow 9.5.0 [4]    | `lossless=True, method=6` |  无损，最高压缩率  |
-|   FLIF (now part of JPEG-XL) [5]    |           FLIF [5]            |        `-N -E100`         | 非交错，最高压缩率 |
-|              CALIC [6]              |   CALIC executable file [7]   |             -             |         -          |
-|  JPEG-LS baseline (ITU-T T.87) [8]  |    Python Pillow-jpls [9]     |         `near=0`          |      无损压缩      |
-| JPEG-LS extension (ITU-T T.870) [1] |    我按照文档实现，未开源     |         `near=0`          |      无损压缩      |
-|   **enhanced JPEG-LS extension**    |          **本代码**           |         `near=0`          |      无损压缩      |
+|          Compressed format          |   Using what software?    |          options          |          meaning of options          |
+| :---------------------------------: | :-----------------------: | :-----------------------: | :----------------------------------: |
+|                 PNG                 |        OptiPNG [3]        |           `-o7`           |         heaviest compression         |
+|              JPEG2000               |  Python Pillow 9.5.0 [4]  |   `irreversible=False`    |         lossless compression         |
+|                WEBP                 |  Python Pillow 9.5.0 [4]  | `lossless=True, method=6` |    lossless heaviest compression     |
+|   FLIF (now part of JPEG-XL) [5]    |         FLIF [5]          |        `-N -E100`         | non-interlaced, heaviest compression |
+|              CALIC [6]              | CALIC executable file [7] |             -             |                  -                   |
+|  JPEG-LS baseline (ITU-T T.87) [8]  |  Python Pillow-jpls [9]   |         `near=0`          |         lossless compression         |
+| JPEG-LS extension (ITU-T T.870) [1] |  我按照文档实现，未开源   |         `near=0`          |         lossless compression         |
+|   **enhanced JPEG-LS extension**    |       **This repo**       |         `near=0`          |         lossless compression         |
 
 ## Benchmark
 
-使用如下两个图像数据集来对比压缩率。
+Use the following two image datasets to compare compression ratios.
 
-|                  |                     小尺寸图像benchmark                      |                     大尺寸图像benchmark                      |
-| :--------------: | :----------------------------------------------------------: | :----------------------------------------------------------: |
-|    数据集来源    | [Kodak Lossless True Color Image Suite](https://r0k.us/graphics/kodak/) [10] | [该网站](http://imagecompression.info/test_images/) 里面的 Gray 8 bit |
-|  压缩前特殊处理  |            原为RGB彩色图像，将它转为8-bit灰度图像            |                             无需                             |
-| 压缩前的图像格式 |                          8-bit 灰度                          |                          8-bit 灰度                          |
-| 压缩前的文件格式 |                             .pgm                             |                             .pgm                             |
-| 压缩前的总数据量 |                        9437544 bytes                         |                       162870743 bytes                        |
-|     图像数量     |                              24                              |                              15                              |
-|       备注       |       我放到了本repo的 [img_kodak](./img_kodak) 目录里       |           数据量大，我没有放到本repo中，请自行下载           |
+|                                 |                  small image benchmark                   |                    large image benchmark                     |
+| :-----------------------------: | :------------------------------------------------------: | :----------------------------------------------------------: |
+|             source              | [Kodak Image Suite](https://r0k.us/graphics/kodak/) [10] | Gray 8 bit in [this website](http://imagecompression.info/test_images/) |
+|           preprocess            |                convert RGB to grey 8-bit                 |                           needn't                            |
+| pixel format before compression |                        grey 8-bit                        |                          grey 8-bit                          |
+| file format before compression  |                           .pgm                           |                             .pgm                             |
+| data volume before compression  |                      9437544 bytes                       |                       162870743 bytes                        |
+|           image count           |                            24                            |                              15                              |
+|              notes              |        See [img_kodak](./img_kodak) in this repo         |      didn't include in this repo. Download it yourself       |
 
-## 结果展示
+## result of compression ratio
 
-对以上两种benchmark进行压缩，得到压缩率数据如下。
+Compress the above two benchmarks and obtain the compression ratio as follows.
 
-注：压缩率=压缩前大小/压缩后大小。越大越好
+Note: Compression ratio=size before compression/size after compression. The larger the better.
 
-|                 格式                  |  小尺寸图像压缩率   |  大尺寸图像压缩率   |
-| :-----------------------------------: | :-----------------: | :-----------------: |
-|                  PNG                  |        1.725        |        2.202        |
-|               JPEG2000                |        1.793        |        2.309        |
-|                 WEBP                  |        1.847        |        2.356        |
-|      FLIF (now part of JPEG-XL)       |        1.864        | **2.534** (**1st**) |
-|                 CALIC                 | **1.913** (**1st**) |        2.458        |
-|     JPEG-LS baseline (ITU-T T.87)     |        1.845        |        2.333        |
-|    JPEG-LS extension (ITU-T T.870)    |        1.884        |        2.411        |
-| **enhanced JPEG-LS extension (本库)** | **1.911** (**2nd**) | **2.470** (**2nd**) |
-
-　
+|             Compressed format              | small image benchmark | large image benchmark |
+| :----------------------------------------: | :-------------------: | :-------------------: |
+|                    PNG                     |         1.725         |         2.202         |
+|                  JPEG2000                  |         1.793         |         2.309         |
+|                    WEBP                    |         1.847         |         2.356         |
+|         FLIF (now part of JPEG-XL)         |         1.864         |  **2.534** (**1st**)  |
+|                   CALIC                    |  **1.913** (**1st**)  |         2.458         |
+|       JPEG-LS baseline (ITU-T T.87)        |         1.845         |         2.333         |
+|      JPEG-LS extension (ITU-T T.870)       |         1.884         |         2.411         |
+| **enhanced JPEG-LS extension (this repo)** |  **1.911** (**2nd**)  |  **2.470** (**2nd**)  |
 
 　
 
 　
 
-# 参考资料
+　
+
+# Reference
 
 [1] JPEG-LS extension (ITU-T T.870) : https://www.itu.int/rec/T-REC-T.870/en 
 
