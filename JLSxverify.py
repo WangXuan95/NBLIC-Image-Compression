@@ -13,7 +13,7 @@ from PIL import Image      # run "python -m pip install --upgrade Pillow" to ins
 
 
 TMP_PGM_FILE1 = 'tmp1.pgm'
-TMP_JLSx_FILE = 'tmp.jlsxn'
+TMP_JLSx_FILE = 'tmp.jlsx'
 TMP_PGM_FILE2 = 'tmp2.pgm'
 
 #NEAR_LIST = [0]
@@ -91,6 +91,8 @@ if __name__ == '__main__' :
             print('skip %s' % fname)
             continue
         
+        print('%s ----------------------------------------------' % fname )
+        
         origin_total_size += os.path.getsize(TMP_PGM_FILE1)
         
         for inear, near in enumerate(NEAR_LIST) :
@@ -113,8 +115,11 @@ if __name__ == '__main__' :
                 exit(-1)
             
             jlsx_total_size[inear] += os.path.getsize(TMP_JLSx_FILE)
+            
+            print('near=%d   compressed_ratio=%.3f' % (near, os.path.getsize(TMP_PGM_FILE1) / os.path.getsize(TMP_JLSx_FILE) ) )
         
-        print('%s  total compression ratios:' % fname , end='' )
+        print('total compression ratios:' , end='' )
+        
         for near, jlsx_size in zip(NEAR_LIST, jlsx_total_size) :
             print('      near=%d  %7.4f' % (near, origin_total_size/jlsx_size) , end='' )
         print()

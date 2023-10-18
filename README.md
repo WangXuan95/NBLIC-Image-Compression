@@ -2,7 +2,7 @@
 
 # enhanced JPEG-LS extension
 
-An enhanced version of JPEG-LS extension (ITU-T T.870) image encoder/decoder in C language.
+An enhanced version of JPEG-LS extension (ITU-T T.870) image compressor/decompressor in C language.
 
 Its lossless compression ratio is better than PNG, JPEG2000, WEBP, HEIF, JPEG-LS baseline, and JPEG-LS extension.
 
@@ -25,8 +25,8 @@ Note: due to my modification, this repo is not compatible with the original JPEG
 
 # Development progress
 
-- [x] grey 8 bit lossless image encode/decode
-- [x] grey 8 bit lossy (near-lossless) image encode/decode
+- [x] grey 8 bit lossless image compress/decompress
+- [x] grey 8 bit lossy (near-lossless) image compress/decompress
 
 　
 
@@ -34,9 +34,11 @@ Note: due to my modification, this repo is not compatible with the original JPEG
 
 The code files are in pure-C, located in the [src](./src) folder:
 
-- `JLSx.c` : Implement a enhanced JLS extension encode/decode
-- `JLSx.h` : Expose the functions of enhanced JLS extension encode/decode to users.
-- `JLSxMain.c` : A main program with `main()` function, which call `JLSx.h` to achieve image file compression/decompression.
+- `JLSx.c` : Implement a enhanced JLS extension compress/decompress
+- `JLSx.h` : Expose the functions of enhanced JLS extension compress/decompress to users.
+- `FileIO.c` : Provide PGM image file reading/writing functions, provide binary file reading/writing functions.
+- `FileIO.h` : Expose the functions in `FileIO.c` to users.
+- `JLSxMain.c` : A main program with `main()` function, which call `JLSx.h` and `FileIO.h` to achieve image file compression/decompression.
 
 　
 
@@ -46,7 +48,7 @@ The code files are in pure-C, located in the [src](./src) folder:
 
 If you add the Microsoft C compiler (`cl. exe`) of Visual Studio to environment variables, you can compile using the command line (CMD).
 
-```bash
+```powershell
 cl src\*.c /FeJLSx.exe /Ox
 ```
 
@@ -66,7 +68,7 @@ We'll get the binary file `JLSx` . Here I've compiled it for you, you can use it
 
 # Run image compression/decompression
 
-This program can compress `.pgm` image file to `.jlsxn` image file. Or decompress  `.jlsxn` image file to `.pgm` image file.
+This program can compress `.pgm` image file to `.jlsx` image file. Or decompress  `.jlsx` image file to `.pgm` image file.
 
 Note that `.pgm` is a simple uncompressed image format (see PGM Image File Specification [2]). PGM file format contains:
 
@@ -75,12 +77,10 @@ Note that `.pgm` is a simple uncompressed image format (see PGM Image File Speci
 
 ### Run in Windows (CMD)
 
-用以下命令把图像文件 `1.pgm` 压缩为 `1.jlsxn`  。
+Use following command to compress `1.pgm` to `1.jlsx`
 
-Use following command to compress `1.pgm` to `1.jlsxn`
-
-```bash
-JLSx.exe 1.pgm 1.jlsxn <near>
+```powershell
+JLSx.exe 1.pgm 1.jlsx [near]
 ```
 
 Where `[near]` is a optional parameter of range 0\~9 :
@@ -88,10 +88,10 @@ Where `[near]` is a optional parameter of range 0\~9 :
 - 0 : lossless (default)
 - 1\~9 : lossy. The larger the near value, the higher distortion and the lower compressed size.
 
-Use following command to compress `1.jlsxn` to `1.pgm`
+Use following command to compress `1.jlsx` to `1.pgm`
 
-```
-JLSx.exe 1.jlsxn 1.pgm
+```powershell
+JLSx.exe 1.jlsx 1.pgm
 ```
 
 ### Run in Linux
@@ -116,8 +116,10 @@ The following table shows the formats involved in the comparison and how they we
 |   FLIF (now part of JPEG-XL) [5]    |         FLIF [5]          |        `-N -E100`         | non-interlaced, heaviest compression |
 |              CALIC [6]              | CALIC executable file [7] |             -             |                  -                   |
 |  JPEG-LS baseline (ITU-T T.87) [8]  |  Python Pillow-jpls [9]   |         `near=0`          |         lossless compression         |
-| JPEG-LS extension (ITU-T T.870) [1] |  我按照文档实现，未开源   |         `near=0`          |         lossless compression         |
+| JPEG-LS extension (ITU-T T.870) [1] |             *             |         `near=0`          |         lossless compression         |
 |   **enhanced JPEG-LS extension**    |       **This repo**       |         `near=0`          |         lossless compression         |
+
+>  \* I implemented JPEG-LS extension by myself for comparison, but I didn't open source it.
 
 ## Benchmark
 
@@ -148,7 +150,7 @@ Note: Compression ratio=size before compression/size after compression. The larg
 |                   CALIC                    |  **1.913** (**1st**)  |         2.458         |
 |       JPEG-LS baseline (ITU-T T.87)        |         1.845         |         2.333         |
 |      JPEG-LS extension (ITU-T T.870)       |         1.884         |         2.411         |
-| **enhanced JPEG-LS extension (this repo)** |  **1.911** (**2nd**)  |  **2.470** (**2nd**)  |
+| **enhanced JPEG-LS extension (this repo)** |  **1.908** (**2nd**)  |  **2.460** (**2nd**)  |
 
 　
 
