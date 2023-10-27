@@ -1,6 +1,6 @@
  ![language](https://img.shields.io/badge/language-C-green.svg) ![build](https://img.shields.io/badge/build-Windows-blue.svg) ![build](https://img.shields.io/badge/build-linux-FF1010.svg)
 
-# enhanced JPEG-LS extension
+# JPEG-LS extension (an enhanced version)
 
 An enhanced version of JPEG-LS extension (ITU-T T.870) image compressor/decompressor in C language.
 
@@ -114,7 +114,7 @@ The following table shows the formats involved in the comparison and how they we
 |              JPEG2000               |  Python Pillow 9.5.0 [4]  |   `irreversible=False`    |         lossless compression         |
 |                WEBP                 |  Python Pillow 9.5.0 [4]  | `lossless=True, method=6` |    lossless heaviest compression     |
 |   FLIF (now part of JPEG-XL) [5]    |         FLIF [5]          |        `-N -E100`         | non-interlaced, heaviest compression |
-|              CALIC [6]              | CALIC executable file [7] |             -             |                  -                   |
+|              CALIC [6]              | CALIC executable file [7] |            `0`            |         lossless compression         |
 |  JPEG-LS baseline (ITU-T T.87) [8]  |  Python Pillow-jpls [9]   |         `near=0`          |         lossless compression         |
 | JPEG-LS extension (ITU-T T.870) [1] |             *             |         `near=0`          |         lossless compression         |
 |   **enhanced JPEG-LS extension**    |       **This repo**       |         `near=0`          |         lossless compression         |
@@ -150,7 +150,7 @@ Note: Compression ratio=size before compression/size after compression. The larg
 |                   CALIC                    |  **1.913** (**1st**)  |         2.458         |
 |       JPEG-LS baseline (ITU-T T.87)        |         1.845         |         2.333         |
 |      JPEG-LS extension (ITU-T T.870)       |         1.884         |         2.411         |
-| **enhanced JPEG-LS extension (this repo)** |  **1.908** (**2nd**)  |  **2.460** (**2nd**)  |
+| **enhanced JPEG-LS extension (this repo)** |  **1.909** (**2nd**)  |  **2.462** (**2nd**)  |
 
 　
 

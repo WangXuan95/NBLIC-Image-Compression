@@ -8,7 +8,7 @@
 // It now supports lossless & lossy compression of 8-bit gray images
 //
 // for standard documents, see:
-//    JPEG-LS baseline  (ITU-T T.87) : https://www.itu.int/rec/T-REC-T.870/en
+//    JPEG-LS baseline  (ITU-T T.87) : https://www.itu.int/rec/T-REC-T.87/en
 //    JPEG-LS extension (ITU-T T.870): https://www.itu.int/rec/T-REC-T.870/en
 // Warning: This implementation is not compliant with these standards, although it is modified from ITU-T T.870
 //

@@ -8,12 +8,12 @@
 // It now supports lossless & lossy compression of 8-bit gray images
 //
 // for standard documents, see:
-//    JPEG-LS baseline  (ITU-T T.87) : https://www.itu.int/rec/T-REC-T.870/en
+//    JPEG-LS baseline  (ITU-T T.87) : https://www.itu.int/rec/T-REC-T.87/en
 //    JPEG-LS extension (ITU-T T.870): https://www.itu.int/rec/T-REC-T.870/en
 // Warning: This implementation is not compliant with these standards, although it is modified from ITU-T T.870
 //
 
-const char *title = "JLSx v0.5";
+const char *title = "JLSx v0.6";
 
 
 typedef    unsigned char        UI8;
@@ -164,7 +164,7 @@ static int correctPxByContext (int ctx_item, int *p_px) {
     int sign = (ctx_item >> (CTX_SCALE-1)) & 1;
     int bias = (ctx_item >> CTX_SCALE) + sign;
     (*p_px) = CLIP((*p_px)+bias, 0, MAX_VAL);
-    return sign ? 1 : -1;
+    return sign;
 }
 
 
@@ -178,10 +178,34 @@ static void updateContext (int *p_ctx_item, int err) {
 }
 
 
-static int mapXtoZ (int x, int px, int sign, int near) {
+static int mapXtoZ (int x, int px, int sign) {
+    if (px < MID_VAL && x > 2*px) {
+        return x;
+    } else if (x < (2*px-MAX_VAL)) {
+        return MAX_VAL - x;
+    } else {
+        x = sign ? (x-px) : (px-x);
+        return (x>=0) ? (2*x) : (-2*x-1);
+    }
+}
+
+
+static int mapZtoX (int z, int px, int sign) {
+    if (px < MID_VAL && z > 2*px) {
+        return z;
+    } else if (z > 2*(MAX_VAL-px)) {
+        return MAX_VAL - z;
+    } else {
+        z = (z&1) ? (-((z+1)>>1)) : (z>>1);
+        return sign ? (px+z) : (px-z);
+    }
+}
+
+
+static int mapXtoZ_lossy (int x, int px, int sign, int near) {
     const int range = (MAX_VAL + 2*near) / (1 + 2*near) + 1;
     
-    int z = sign * (x - px);
+    int z = sign ? (x - px) : (px - x);
     
     if (z > 0)
         z =  ( (near + z) / (2*near + 1) );
@@ -197,12 +221,15 @@ static int mapXtoZ (int x, int px, int sign, int near) {
 }
 
 
-static int mapZtoX (int z, int px, int sign, int near) {
+static int mapZtoX_lossy (int z, int px, int sign, int near) {
     const int range = (MAX_VAL + 2*near) / (1 + 2*near) + 1;
     
     int x = (z&1) ? (-((z+1)>>1)) : (z>>1);
     
-    x = px + sign * x * (2*near+1);
+    if (sign)
+        x = px + x * (2*near+1);
+    else
+        x = px - x * (2*near+1);
     
     if      (x < -near)
         x += range * (1 + 2*near);
@@ -469,12 +496,11 @@ static int getHeader (UI8 **pp_buf, int *p_ysz, int *p_xsz, int *p_near) {
 //     positive value : compressed stream length
 //     -1             : failed
 int JLSxCompress (UI8 *p_buf, UI8 *p_img, int ysz, int xsz, int near) {
-    int i, j;
+    int i, j, err0, err1=0;
     
     int ctx_array [N_CONTEXT] = {0};
     
-    UI8 c0_tree [N_QD][8][32];
-    UI8 c1_tree [N_QD][8][32];
+    UI8 c0_tree [N_QD][8][32], c1_tree [N_QD][8][32];
     
     ARI_CODER_t coder;
     
@@ -490,18 +516,16 @@ int JLSxCompress (UI8 *p_buf, UI8 *p_img, int ysz, int xsz, int near) {
     initCounterTree(c1_tree);
     
     for (i=0; i<ysz; i++) {
-        int err0 = 0;
+        err0 = err1;
         
         for (j=0; j<xsz; j++) {
             int  a, b, c, d, e, f, g, h, q, r, s, px, qd, adr, sign, x, z;
             
             sampleNeighbourPixels(p_img, xsz, i, j, &a, &b, &c, &d, &e, &f, &g, &h, &q, &r, &s);
             
-            px = predictMIX(a, b, c, d, e, f, g, h, q, r, s);
-            
             qd = getQuantizedDelta(a, b, c, d, e, f, g, err0);
             
-            err0 = px;
+            err0 = px = predictMIX(a, b, c, d, e, f, g, h, q, r, s);
             
             adr = getContextAddress(a, b, c, d, e, f, qd, px);
             
@@ -509,18 +533,24 @@ int JLSxCompress (UI8 *p_buf, UI8 *p_img, int ysz, int xsz, int near) {
             
             x = GET2D(p_img, xsz, i, j);
             
-            z = mapXtoZ(x, px, sign, near);
+            if (near > 0)
+                z = mapXtoZ_lossy(x, px, sign, near);
+            else
+                z = mapXtoZ      (x, px, sign);
             
             encodeZ(&coder, c0_tree, c1_tree, qd, z);
             
             if (near > 0) {
-                x = mapZtoX(z, px, sign, near);
+                x = mapZtoX_lossy(z, px, sign, near);
                 GET2D(p_img, xsz, i, j) = (UI8)x;
             }
             
             err0 = CLIP((x-err0), MIN_BIAS, MAX_BIAS);
             
             updateContext(&ctx_array[adr], err0);
+            
+            if (j == 0)
+                err1 = err0;
         }
     }
 
@@ -534,12 +564,11 @@ int JLSxCompress (UI8 *p_buf, UI8 *p_img, int ysz, int xsz, int near) {
 //     0 : success
 //    -1 : failed
 int JLSxDecompress(UI8 *p_buf, UI8 *p_img, int *p_ysz, int *p_xsz, int *p_near) {
-    int i, j;
+    int i, j, err0, err1=0;
     
     int ctx_array [N_CONTEXT] = {0};
     
-    UI8 c0_tree [N_QD][8][32];
-    UI8 c1_tree [N_QD][8][32];
+    UI8 c0_tree [N_QD][8][32], c1_tree [N_QD][8][32];
     
     ARI_CODER_t coder;
 
@@ -552,18 +581,16 @@ int JLSxDecompress(UI8 *p_buf, UI8 *p_img, int *p_ysz, int *p_xsz, int *p_near) 
     initCounterTree(c1_tree);
     
     for (i=0; i<(*p_ysz); i++) {
-        int err0 = 0;
+        err0 = err1;
         
         for (j=0; j<(*p_xsz); j++) {
             int  a, b, c, d, e, f, g, h, q, r, s, px, qd, adr, sign, x, z;
             
             sampleNeighbourPixels(p_img, (*p_xsz), i, j, &a, &b, &c, &d, &e, &f, &g, &h, &q, &r, &s);
             
-            px = predictMIX(a, b, c, d, e, f, g, h, q, r, s);
-            
             qd = getQuantizedDelta(a, b, c, d, e, f, g, err0);
             
-            err0 = px;
+            err0 = px = predictMIX(a, b, c, d, e, f, g, h, q, r, s);
             
             adr = getContextAddress(a, b, c, d, e, f, qd, px);
             
@@ -571,13 +598,19 @@ int JLSxDecompress(UI8 *p_buf, UI8 *p_img, int *p_ysz, int *p_xsz, int *p_near) 
             
             z = decodeZ(&coder, c0_tree, c1_tree, qd);
             
-            x = mapZtoX(z, px, sign, (*p_near));
+            if ((*p_near) > 0)
+                x = mapZtoX_lossy(z, px, sign, (*p_near));
+            else
+                x = mapZtoX      (z, px, sign);
             
             GET2D(p_img, (*p_xsz), i, j) = (UI8)x;
             
             err0 = CLIP((x-err0), MIN_BIAS, MAX_BIAS);
             
             updateContext(&ctx_array[adr], err0);
+            
+            if (j == 0)
+                err1 = err0;
         }
     }
 
