@@ -150,7 +150,7 @@ Note: Compression ratio=size before compression/size after compression. The larg
 |                   CALIC                    |  **1.913** (**1st**)  |         2.458         |
 |       JPEG-LS baseline (ITU-T T.87)        |         1.845         |         2.333         |
 |      JPEG-LS extension (ITU-T T.870)       |         1.884         |         2.411         |
-| **enhanced JPEG-LS extension (this repo)** |  **1.909** (**2nd**)  |  **2.462** (**2nd**)  |
+| **enhanced JPEG-LS extension (this repo)** |  **1.911** (**2nd**)  |  **2.465** (**2nd**)  |
 
 　
 

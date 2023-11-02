@@ -17,7 +17,7 @@ TMP_JLSx_FILE = 'tmp.jlsx'
 TMP_PGM_FILE2 = 'tmp2.pgm'
 
 #NEAR_LIST = [0]
-NEAR_LIST = [0,1,2,9]
+NEAR_LIST = [0,1,2]
 
 
 

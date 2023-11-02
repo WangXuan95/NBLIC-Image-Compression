@@ -52,8 +52,8 @@ static int suffix_match (const char *string, const char *suffix) {
 //     -1 : exit with error
 //      0 : exit normally
 int main (int argc, char **argv) {
-    static unsigned char img      [MAX_YSZ*MAX_XSZ];
-    static unsigned char buf      [BUF_MAX_LEN] = {0};
+    static unsigned char img [MAX_YSZ*MAX_XSZ];
+    static unsigned char buf [BUF_MAX_LEN] = {0};
 
     int ysz=-1 , xsz=-1 , near=0 , len;
 

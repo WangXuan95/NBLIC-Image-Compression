@@ -13,7 +13,8 @@
 // Warning: This implementation is not compliant with these standards, although it is modified from ITU-T T.870
 //
 
-const char *title = "JLSx v0.6";
+
+const char *title = "JLSx v0.7";
 
 
 typedef    unsigned char        UI8;
@@ -34,22 +35,22 @@ typedef    unsigned char        UI8;
 #define    N_QD                 16
 #define    N_CONTEXT            ((N_QD>>1) * 256)
 
+#define    N_WT                 256
+
 #define    CTX_SCALE            10
 #define    CTX_COEF             7
 
-#define    MAX_CNT_SUM          255
+#define    MAX_CNT_SUM          256
 
 
 
 static void sampleNeighbourPixels (const UI8 *img, int xsz, int i, int j, int *p_a, int *p_b, int *p_c, int *p_d, int *p_e, int *p_f, int *p_g, int *p_h, int *p_q, int *p_r, int *p_s) {
     *p_a = (int)SPIX(img, xsz, i   , j-1 , MID_VAL);
     *p_b = (int)SPIX(img, xsz, i-1 , j   , MID_VAL);
-    
     if      (i == 0)
         *p_b = *p_a;
     else if (j == 0)
         *p_a = *p_b;
-    
     *p_e = (int)SPIX(img, xsz, i   , j-2 , *p_a);
     *p_c = (int)SPIX(img, xsz, i-1 , j-1 , *p_b);
     *p_d = (int)SPIX(img, xsz, i-1 , j+1 , *p_b);
@@ -128,20 +129,32 @@ static int predictMIX (int a, int b, int c, int d, int e, int f, int g, int h, i
 }
 
 
-static int getQuantizedDelta (int a, int b, int c, int d, int e, int f, int g, int err) {
-    const static int q_thresholds [] = {1, 3, 5, 8, 12, 17, 23, 30, 38, 47, 58, 71, 86, 105, 165};
+static void getQuantizedDelta (int a, int b, int c, int d, int e, int f, int g, int err, int *p_qd1, int *p_qd2, int *p_qd2wt) {
+    const static int q_mid [] = {0, 2, 4, 7, 10, 14, 20, 26, 34, 42, 52, 64, 78, 95, 135, 200};
     
     int dh = ABS(a-e) + ABS(b-c) + ABS(b-d);
     int dv = ABS(a-c) + ABS(b-f) + ABS(d-g);
     int delta = dh + dv + 2*ABS(err);
     
-    int qd;
+    int qd, wt;
     
     for (qd=0; qd<(N_QD-1); qd++)
-        if (delta <= q_thresholds[qd])
+        if (delta <= q_mid[qd])
             break;
     
-    return qd; 
+    *p_qd1 = *p_qd2 = qd;
+    *p_qd2wt = 0;
+    
+    if (delta < q_mid[qd]) {
+        wt = N_WT * (delta - q_mid[qd-1]) / (q_mid[qd] - q_mid[qd-1]);
+        if (wt < (N_WT/2)) {
+            *p_qd1   = qd - 1;
+            *p_qd2wt = wt;
+        } else {
+            *p_qd2   = qd - 1;
+            *p_qd2wt = N_WT - wt;
+        }
+    }
 }
 
 
@@ -178,65 +191,41 @@ static void updateContext (int *p_ctx_item, int err) {
 }
 
 
-static int mapXtoZ (int x, int px, int sign) {
-    if (px < MID_VAL && x > 2*px) {
-        return x;
-    } else if (x < (2*px-MAX_VAL)) {
-        return MAX_VAL - x;
-    } else {
-        x = sign ? (x-px) : (px-x);
-        return (x>=0) ? (2*x) : (-2*x-1);
-    }
-}
-
-
-static int mapZtoX (int z, int px, int sign) {
-    if (px < MID_VAL && z > 2*px) {
-        return z;
-    } else if (z > 2*(MAX_VAL-px)) {
-        return MAX_VAL - z;
-    } else {
-        z = (z&1) ? (-((z+1)>>1)) : (z>>1);
-        return sign ? (px+z) : (px-z);
-    }
-}
-
-
-static int mapXtoZ_lossy (int x, int px, int sign, int near) {
-    const int range = (MAX_VAL + 2*near) / (1 + 2*near) + 1;
+static int mapXtoZ (int x, int px, int sign, int near) {
+    const int ty = (CLIP(px, 0, MAX_VAL - px) + near) / (2*near + 1);
+    int sy = (x >= px) ? 1 : 0;
+    int y  = ABS(x - px);
     
-    int z = sign ? (x - px) : (px - x);
+    y = (y + near) / (2*near + 1);
     
-    if (z > 0)
-        z =  ( (near + z) / (2*near + 1) );
+    if      (y <= 0)
+        return 0;
+    else if (y <= ty)
+        return 2*y - (sy^sign);
     else
-        z = -( (near - z) / (2*near + 1) );
-    
-    if (z < 0)
-        z += range;
-    if (z >= (range+1)/2)
-        z -= range;
-    
-    return (z>=0) ? (2*z) : (-2*z-1);
+        return y + ty;
 }
 
 
-static int mapZtoX_lossy (int z, int px, int sign, int near) {
-    const int range = (MAX_VAL + 2*near) / (1 + 2*near) + 1;
+static int mapZtoX (int z, int px, int sign, int near) {
+    const int ty = (CLIP(px, 0, MAX_VAL - px) + near) / (2*near + 1);
+    int y, sy;
     
-    int x = (z&1) ? (-((z+1)>>1)) : (z>>1);
+    if        (z <= 0) {
+        y  = 0;
+        sy = 0;
+    } else if (z <= 2*ty) {
+        y  = (z + 1) / 2;
+        sy = (z & 1) ^ sign;
+    } else {
+        y  = z - ty;
+        sy = (px < MID_VAL) ? 1 : 0;
+    }
     
-    if (sign)
-        x = px + x * (2*near+1);
-    else
-        x = px - x * (2*near+1);
+    y *= (2*near + 1);
+    y = px + (sy ? y : -y);
     
-    if      (x < -near)
-        x += range * (1 + 2*near);
-    else if (x > (MAX_VAL+near))
-        x -= range * (1 + 2*near);
-    
-    return CLIP(x, 0, MAX_VAL);
+    return CLIP(y, 0, MAX_VAL);
 }
 
 
@@ -286,21 +275,21 @@ static void AriEncodeFinish (ARI_CODER_t *p_coder) {
 }
 
 
-static int AriGetAvd (int areg, UI8 c0, UI8 c1) {
-    const static int TABLE_Th [30] = {0x7800, 0x7000, 0x6800, 0x6000, 0x5800, 0x5000, 0x4800, 0x4000, 0x3c00, 0x3800, 0x3400, 0x3000, 0x2c00, 0x2800, 0x2400, 0x2000, 0x1c00, 0x1800, 0x1400, 0x1000, 0x0e00, 0x0c00, 0x0a00, 0x0800, 0x0600, 0x0400, 0x0300, 0x0200, 0x0180, 0x0101};
-    const static int TABLE_Av [31] = {0x7ab6, 0x7068, 0x6678, 0x5ce2, 0x53a6, 0x4ac0, 0x4230, 0x39f4, 0x33fc, 0x301a, 0x2c4c, 0x2892, 0x24ea, 0x2156, 0x1dd6, 0x1a66, 0x170a, 0x13c0, 0x1086, 0x0d60, 0x0b0e, 0x0986, 0x0804, 0x0686, 0x050a, 0x0394, 0x027e, 0x01c6, 0x013e, 0x0100, 0x0002};
+static int AriGetAvd (int areg, int c0, int c1) {
+    const static int table_th [30] = {0x7800, 0x7000, 0x6800, 0x6000, 0x5800, 0x5000, 0x4800, 0x4000, 0x3c00, 0x3800, 0x3400, 0x3000, 0x2c00, 0x2800, 0x2400, 0x2000, 0x1c00, 0x1800, 0x1400, 0x1000, 0x0e00, 0x0c00, 0x0a00, 0x0800, 0x0600, 0x0400, 0x0300, 0x0200, 0x0180, 0x0101};
+    const static int table_av [31] = {0x7ab6, 0x7068, 0x6678, 0x5ce2, 0x53a6, 0x4ac0, 0x4230, 0x39f4, 0x33fc, 0x301a, 0x2c4c, 0x2892, 0x24ea, 0x2156, 0x1dd6, 0x1a66, 0x170a, 0x13c0, 0x1086, 0x0d60, 0x0b0e, 0x0986, 0x0804, 0x0686, 0x050a, 0x0394, 0x027e, 0x01c6, 0x013e, 0x0100, 0x0002};
     
     int prob, i, hd, av;
     
     prob = (c0 < c1) ? c0 : c1;
     prob <<= 16;
-    prob /= (int)c0 + (int)c1;
+    prob /= c0 + c1;
     
     for (i=0; i<30; i++)
-        if (TABLE_Th[i] < prob)
+        if (table_th[i] < prob)
             break;
     
-    av = TABLE_Av[i];
+    av = table_av[i];
     
     for (hd=0x8000; hd>areg; hd>>=1)
         if (av > 0x0002)
@@ -315,13 +304,13 @@ static int AriGetAvd (int areg, UI8 c0, UI8 c1) {
 }
 
 
-static void AriUpdateCounter (UI8 *p_c0, UI8 *p_c1, int bin) {
+static void AriUpdateCounter (int *p_c0, int *p_c1, int bin, int wt) {
     if (bin)
-        (*p_c1) ++;
+        (*p_c1) += wt;
     else
-        (*p_c0) ++;
+        (*p_c0) += wt;
     
-    if (((int)(*p_c0) + (int)(*p_c1)) > MAX_CNT_SUM) {
+    if (((*p_c0) + (*p_c1)) > MAX_CNT_SUM*N_WT) {
         (*p_c0) ++;
         (*p_c1) ++;
         (*p_c0) >>= 1;
@@ -330,19 +319,23 @@ static void AriUpdateCounter (UI8 *p_c0, UI8 *p_c1, int bin) {
 }
 
 
-static void AriEncode (ARI_CODER_t *p_coder, UI8 *p_c0, UI8 *p_c1, int bin) {
-    int Avd = AriGetAvd(p_coder->areg, *p_c0, *p_c1);
+static void AriEncode (ARI_CODER_t *p_coder, int *p_c0, int *p_c1, int *p_c02, int *p_c12, int wt, int bin) {
+    int c0 = ((*p_c0) * (N_WT-wt) + (*p_c02) * wt + N_WT/2) / N_WT;
+    int c1 = ((*p_c1) * (N_WT-wt) + (*p_c12) * wt + N_WT/2) / N_WT;
     
-    int mps_bin = ((*p_c0) < (*p_c1)) ? 1 : 0;
+    int av = AriGetAvd(p_coder->areg, c0, c1);
     
-    if (mps_bin == bin) {                                              // Update creg and areg
-        p_coder->areg  = Avd;
+    int mps_bin = (c0 < c1) ? 1 : 0;
+    
+    if (mps_bin == bin) {                                               // Update creg and areg
+        p_coder->areg  = av;
     } else {
-        p_coder->areg -= Avd;
-        p_coder->creg += Avd;
+        p_coder->areg -= av;
+        p_coder->creg += av;
     }
     
-    AriUpdateCounter(p_c0, p_c1, bin);                                 // Update counters
+    AriUpdateCounter(p_c0 , p_c1 , bin, N_WT-wt);                      // Update counters
+    AriUpdateCounter(p_c02, p_c12, bin, wt);                           // Update counters
     
     if ( p_coder->areg < 0x100 ) {                                     // Renormalization of areg and creg and output data bit stream
         if (p_coder->creg >= 0xff*0xff) {
@@ -363,19 +356,23 @@ static void AriEncode (ARI_CODER_t *p_coder, UI8 *p_c0, UI8 *p_c1, int bin) {
 }
 
 
-static int AriDecode (ARI_CODER_t *p_coder, UI8 *p_c0, UI8 *p_c1) {
-    int Avd = AriGetAvd(p_coder->areg, *p_c0, *p_c1);
-    int bin = ((*p_c0) < (*p_c1)) ? 1 : 0;
+static int AriDecode (ARI_CODER_t *p_coder, int *p_c0, int *p_c1, int *p_c02, int *p_c12, int wt) {
+    int c0 = ((*p_c0) * (N_WT-wt) + (*p_c02) * wt + N_WT/2) / N_WT;
+    int c1 = ((*p_c1) * (N_WT-wt) + (*p_c12) * wt + N_WT/2) / N_WT;
+    
+    int av = AriGetAvd(p_coder->areg, c0, c1);
+    int bin = (c0 < c1) ? 1 : 0;
 
-    if (p_coder->creg < Avd) {                                         // Detemination of bin
-        p_coder->areg = Avd;
+    if (p_coder->creg < av) {                                          // Detemination of bin
+        p_coder->areg = av;
     } else {
-        p_coder->creg = p_coder->creg - Avd;
-        p_coder->areg = p_coder->areg - Avd;
+        p_coder->creg = p_coder->creg - av;
+        p_coder->areg = p_coder->areg - av;
         bin = !bin;
     }
     
-    AriUpdateCounter(p_c0, p_c1, bin);                                 // Update counters
+    AriUpdateCounter(p_c0 , p_c1 , bin, N_WT-wt);                      // Update counters
+    AriUpdateCounter(p_c02, p_c12, bin, wt);                           // Update counters
 
     if (p_coder->areg < 0x100) {                                       // Renormalization of areg and creg
         p_coder->creg = (p_coder->creg << 8) - p_coder->creg + *(p_coder->p_buf++);   // GetByteFromStream
@@ -386,77 +383,79 @@ static int AriDecode (ARI_CODER_t *p_coder, UI8 *p_c0, UI8 *p_c1) {
 }
 
 
-static void initCounterTree (UI8 c_tree [][8][32]) {
-    int i, j, k;
+static void initCounterTree (int c_tree [][256]) {
+    int i, j;
     for (i=0; i<N_QD; i++)
-        for (j=0; j<8; j++)
-            for (k=0; k<32; k++)
-                c_tree[i][j][k] = 2;
+        for (j=0; j<256; j++)
+            c_tree[i][j] = N_WT;
 }
 
 
-static void moveCounterTreePos (int *p_row, int *p_col) {
-    int row = *p_row;
-    int col = *p_col;
+static void encodeZ (ARI_CODER_t *p_coder, int k_step, int c0_tree [][256], int c1_tree [][256], int qd1, int qd2, int wt, int z) {
+    const int k_max = (N_QD-1) / k_step;
+    int cl=0, k, bin;
     
-    col ++;
+    if ((qd2 / k_step) != (qd1 / k_step))
+        qd2 = qd1;
     
-    if (row < (N_QD-1)) {
-        if        (row%3 == 0) {
-            if (col >= 6)
-                row ++;
-        } else if (row%3 == 1) {
-            if (col >= 7)
-                row ++;
-        } else {
-            if (col >= 8) {
-                row ++;
-                col = 4;
-            }
+    for (;;) {
+        k = qd1 / k_step;
+        
+        bin = (cl >> k_max) < (z >> k);
+        
+        AriEncode(p_coder, &c0_tree[qd1][cl], &c1_tree[qd1][cl], &c0_tree[qd2][cl], &c1_tree[qd2][cl], wt, bin);
+        
+        if (!bin)
+            break;
+        
+        cl += (1 << k_max);
+        
+        if (cl >= 256) {
+            cl >>= 1;
+            qd2 = qd1 = (k + 1) * k_step;
         }
     }
     
-    *p_row = row;
-    *p_col = col;
-}
-
-
-static void encodeZ (ARI_CODER_t *p_coder, UI8 c0_tree [][8][32], UI8 c1_tree [][8][32], int row, int z) {
-    int col=0, pos=1, k;
-
-    for (;;) {
-        int bin = col < (z >> (row/3)) ;
-        AriEncode(p_coder, &c0_tree[row][col][0], &c1_tree[row][col][0], bin);
-        if (!bin)
-            break;
-        moveCounterTreePos(&row, &col);
-    }
+    cl ++;
     
-    for (k=((row/3)-1); k>=0; k--) {
-        int bin = (z >> k) & 1;
-        AriEncode(p_coder, &c0_tree[row][col][pos], &c1_tree[row][col][pos], bin);
-        pos += bin ? (1<<k) : 1;
+    for (k--; k>=0; k--) {
+        bin = (z >> k) & 1;
+        AriEncode(p_coder, &c0_tree[qd1][cl], &c1_tree[qd1][cl], &c0_tree[qd2][cl], &c1_tree[qd2][cl], wt, bin);
+        cl += bin ? (1<<k) : 1;
     }
 }
 
 
-static int decodeZ (ARI_CODER_t *p_coder, UI8 c0_tree [][8][32], UI8 c1_tree [][8][32], int row) {
-    int col=0, pos=1, k, z;
+static int decodeZ (ARI_CODER_t *p_coder, int k_step, int c0_tree [][256], int c1_tree [][256], int qd1, int qd2, int wt) {
+    const int k_max = (N_QD-1) / k_step;
+    int cl=0, k, bin, z;
+    
+    if ((qd2 / k_step) != (qd1 / k_step))
+        qd2 = qd1;
 
     for (;;) {
-        int bin = AriDecode(p_coder, &c0_tree[row][col][0], &c1_tree[row][col][0]);
+        k = qd1 / k_step;
+        
+        bin = AriDecode(p_coder, &c0_tree[qd1][cl], &c1_tree[qd1][cl], &c0_tree[qd2][cl], &c1_tree[qd2][cl], wt);
+        
         if (!bin)
             break;
-        moveCounterTreePos(&row, &col);
+        
+        cl += (1 << k_max);
+        
+        if (cl >= 256) {
+            cl >>= 1;
+            qd2 = qd1 = (k + 1) * k_step;
+        }
     }
     
-    z = (col<<(row/3));
+    z = ((cl >> k_max) << k);
+    cl ++;
     
-    for (k=((row/3)-1); k>=0; k--) {
-        int bin = AriDecode(p_coder, &c0_tree[row][col][pos], &c1_tree[row][col][pos]);
-        if (bin)
-            z += (1<<k);
-        pos += bin ? (1<<k) : 1;
+    for (k--; k>=0; k--) {
+        bin = AriDecode(p_coder, &c0_tree[qd1][cl], &c1_tree[qd1][cl], &c0_tree[qd2][cl], &c1_tree[qd2][cl], wt);
+        z  += bin ? (1<<k) : 0;
+        cl += bin ? (1<<k) : 1;
     }
 
     return z;
@@ -496,11 +495,11 @@ static int getHeader (UI8 **pp_buf, int *p_ysz, int *p_xsz, int *p_near) {
 //     positive value : compressed stream length
 //     -1             : failed
 int JLSxCompress (UI8 *p_buf, UI8 *p_img, int ysz, int xsz, int near) {
-    int i, j, err0, err1=0;
+    int i, j, k_step;
     
     int ctx_array [N_CONTEXT] = {0};
     
-    UI8 c0_tree [N_QD][8][32], c1_tree [N_QD][8][32];
+    int c0_tree [N_QD][256], c1_tree [N_QD][256];
     
     ARI_CODER_t coder;
     
@@ -515,42 +514,37 @@ int JLSxCompress (UI8 *p_buf, UI8 *p_img, int ysz, int xsz, int near) {
     initCounterTree(c0_tree);
     initCounterTree(c1_tree);
     
+    k_step = CLIP(3+2*near, 3, N_QD);
+    
     for (i=0; i<ysz; i++) {
-        err0 = err1;
+        int err0 = 0;
         
         for (j=0; j<xsz; j++) {
-            int  a, b, c, d, e, f, g, h, q, r, s, px, qd, adr, sign, x, z;
+            int  a, b, c, d, e, f, g, h, q, r, s, px, qd1, qd2, qd2wt, adr, sign, x, z;
             
             sampleNeighbourPixels(p_img, xsz, i, j, &a, &b, &c, &d, &e, &f, &g, &h, &q, &r, &s);
             
-            qd = getQuantizedDelta(a, b, c, d, e, f, g, err0);
+            getQuantizedDelta(a, b, c, d, e, f, g, err0, &qd1, &qd2, &qd2wt);
             
             err0 = px = predictMIX(a, b, c, d, e, f, g, h, q, r, s);
             
-            adr = getContextAddress(a, b, c, d, e, f, qd, px);
+            adr = getContextAddress(a, b, c, d, e, f, qd1, px);
             
             sign = correctPxByContext(ctx_array[adr], &px);
             
             x = GET2D(p_img, xsz, i, j);
             
-            if (near > 0)
-                z = mapXtoZ_lossy(x, px, sign, near);
-            else
-                z = mapXtoZ      (x, px, sign);
+            z = mapXtoZ(x, px, sign, near);
             
-            encodeZ(&coder, c0_tree, c1_tree, qd, z);
+            encodeZ(&coder, k_step, c0_tree, c1_tree, qd1, qd2, qd2wt, z);
             
-            if (near > 0) {
-                x = mapZtoX_lossy(z, px, sign, near);
-                GET2D(p_img, xsz, i, j) = (UI8)x;
-            }
+            x = mapZtoX(z, px, sign, near);
+            
+            GET2D(p_img, xsz, i, j) = (UI8)x;
             
             err0 = CLIP((x-err0), MIN_BIAS, MAX_BIAS);
             
             updateContext(&ctx_array[adr], err0);
-            
-            if (j == 0)
-                err1 = err0;
         }
     }
 
@@ -564,11 +558,11 @@ int JLSxCompress (UI8 *p_buf, UI8 *p_img, int ysz, int xsz, int near) {
 //     0 : success
 //    -1 : failed
 int JLSxDecompress(UI8 *p_buf, UI8 *p_img, int *p_ysz, int *p_xsz, int *p_near) {
-    int i, j, err0, err1=0;
+    int i, j, k_step;
     
     int ctx_array [N_CONTEXT] = {0};
     
-    UI8 c0_tree [N_QD][8][32], c1_tree [N_QD][8][32];
+    int c0_tree [N_QD][256], c1_tree [N_QD][256];
     
     ARI_CODER_t coder;
 
@@ -580,37 +574,33 @@ int JLSxDecompress(UI8 *p_buf, UI8 *p_img, int *p_ysz, int *p_xsz, int *p_near) 
     initCounterTree(c0_tree);
     initCounterTree(c1_tree);
     
+    k_step = CLIP(3+2*(*p_near), 3, N_QD);
+    
     for (i=0; i<(*p_ysz); i++) {
-        err0 = err1;
+        int err0 = 0;
         
         for (j=0; j<(*p_xsz); j++) {
-            int  a, b, c, d, e, f, g, h, q, r, s, px, qd, adr, sign, x, z;
+            int  a, b, c, d, e, f, g, h, q, r, s, px, qd1, qd2, qd2wt, adr, sign, x, z;
             
             sampleNeighbourPixels(p_img, (*p_xsz), i, j, &a, &b, &c, &d, &e, &f, &g, &h, &q, &r, &s);
             
-            qd = getQuantizedDelta(a, b, c, d, e, f, g, err0);
+            getQuantizedDelta(a, b, c, d, e, f, g, err0, &qd1, &qd2, &qd2wt);
             
             err0 = px = predictMIX(a, b, c, d, e, f, g, h, q, r, s);
             
-            adr = getContextAddress(a, b, c, d, e, f, qd, px);
+            adr = getContextAddress(a, b, c, d, e, f, qd1, px);
             
             sign = correctPxByContext(ctx_array[adr], &px);
             
-            z = decodeZ(&coder, c0_tree, c1_tree, qd);
+            z = decodeZ(&coder, k_step, c0_tree, c1_tree, qd1, qd2, qd2wt);
             
-            if ((*p_near) > 0)
-                x = mapZtoX_lossy(z, px, sign, (*p_near));
-            else
-                x = mapZtoX      (z, px, sign);
+            x = mapZtoX(z, px, sign, (*p_near));
             
             GET2D(p_img, (*p_xsz), i, j) = (UI8)x;
             
             err0 = CLIP((x-err0), MIN_BIAS, MAX_BIAS);
             
             updateContext(&ctx_array[adr], err0);
-            
-            if (j == 0)
-                err1 = err0;
         }
     }
 
