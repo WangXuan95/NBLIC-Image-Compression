@@ -54,11 +54,11 @@ int writeBytesToFile (const char *p_filename, const unsigned char *p_buf, int le
 // return:
 //     -1 : failed
 //      0 : success
-int loadPgmImageFile (const char *p_filename, unsigned char *p_img, int *p_ysz, int *p_xsz) {
+int loadPgmImageFile (const char *p_filename, unsigned char *p_img, int *p_height, int *p_width) {
     int   i, maxval=0;
     FILE *fp;
 
-    (*p_ysz) = (*p_xsz) = -1;
+    (*p_height) = (*p_width) = -1;
     
     if ( (fp = fopen(p_filename, "rb")) == NULL )
         return -1;
@@ -73,12 +73,12 @@ int loadPgmImageFile (const char *p_filename, unsigned char *p_img, int *p_ysz, 
         return -1;
     }
 
-    if ( fscanf(fp, "%d", p_xsz) < 1 ) {
+    if ( fscanf(fp, "%d", p_width) < 1 ) {
         fclose(fp);
         return -1;
     }
     
-    if ( fscanf(fp, "%d", p_ysz) < 1 ) {
+    if ( fscanf(fp, "%d", p_height) < 1 ) {
         fclose(fp);
         return -1;
     }
@@ -93,14 +93,14 @@ int loadPgmImageFile (const char *p_filename, unsigned char *p_img, int *p_ysz, 
         return -1;
     }
     
-    if ((*p_xsz) < 1 || (*p_ysz) < 1) {      // PGM size error
+    if ((*p_width) < 1 || (*p_height) < 1) { // PGM size error
         fclose(fp);
         return -1;
     }
     
     fgetc(fp);                               // skip a white char
     
-    for (i=((*p_xsz)*(*p_ysz)); i>0; i--) {
+    for (i=((*p_width)*(*p_height)); i>0; i--) {
         int ch = fgetc(fp);
         
         if (ch == EOF) {                     // pixels not enough
@@ -120,19 +120,19 @@ int loadPgmImageFile (const char *p_filename, unsigned char *p_img, int *p_ysz, 
 // return:
 //     -1 : failed
 //      0 : success
-int writePgmImageFile (const char *p_filename, const unsigned char *p_img, int ysz, int xsz) {
+int writePgmImageFile (const char *p_filename, const unsigned char *p_img, int height, int width) {
     int   i;
     FILE *fp;
     
-    if (xsz < 1 || ysz < 1)
+    if (width < 1 || height < 1)
         return -1;
     
     if ( (fp = fopen(p_filename, "wb")) == NULL )
         return -1;
 
-    fprintf(fp, "P5\n%d %d\n255\n", xsz, ysz);
+    fprintf(fp, "P5\n%d %d\n255\n", width, height);
     
-    for (i=xsz*ysz; i>0; i--) {
+    for (i=width*height; i>0; i--) {
         unsigned char pixel = *(p_img++);
         if (fputc(pixel, fp) == EOF) {
             fclose(fp);                       // write file failed
@@ -143,4 +143,3 @@ int writePgmImageFile (const char *p_filename, const unsigned char *p_img, int y
     fclose(fp);
     return 0;
 }
-

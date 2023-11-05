@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # Python3
+# this program is only for windows
 
 # python standard libraries importation
 import sys
@@ -12,54 +13,52 @@ from PIL import Image      # run "python -m pip install --upgrade Pillow" to ins
 
 
 
-TMP_PGM_FILE1 = 'tmp1.pgm'
-TMP_JLSx_FILE = 'tmp.jlsx'
-TMP_PGM_FILE2 = 'tmp2.pgm'
-
-#NEAR_LIST = [0]
-NEAR_LIST = [0,1,2]
-
-
-
-#JLSx_BIN = './JLSx'               # for linux
-JLSx_BIN = '.\\JLSx.exe'          # for windows
+############################################### user config #################
+TMP_PNM_FILE1  = 'tmp1.pnm'                                                 #
+TMP_CMPRS_FILE = 'tmp.nblic'                                                #
+TMP_PNM_FILE2  = 'tmp2.pnm'                                                 #
+                                                                            #
+CODEC_EXE_FILE = '.\\nblic_codec.exe'          # only for windows           #
+############################################### end of user config ##########
 
 
 
-def callJLSx (pgm_file_name, jlsx_file_name, mode='encode', near=0) :
-    if mode == 'encode' :
-        COMMANDS = [ JLSx_BIN, pgm_file_name, jlsx_file_name, str(near) ]
+def callCodec (input_fname, output_fname, near=0) :
+    command = [CODEC_EXE_FILE, input_fname, output_fname, str(near)]
+    p = sp.Popen(command, stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.PIPE)
+    return p.wait()
+
+
+
+def loadImageAsGrayOrRGB (input_image_file_name) :
+    img_obj = Image.open(input_image_file_name)
+    if img_obj.mode == 'L' :
+        img = img_obj.convert('L')
     else :
-        COMMANDS = [ JLSx_BIN, jlsx_file_name, pgm_file_name ]
-    p = sp.Popen(COMMANDS, stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.PIPE)
-    assert p.wait() == 0
-
-
-
-def convertImageToPGM (image_file_name, pgm_file_name) :
-    img_obj = Image.open(image_file_name)
-    img = img_obj.convert('L')
+        img = img_obj.convert('RGB')
     img_obj.close()
-    img.save(pgm_file_name)
+    return img
 
 
 
-def check2Images (image1_file_name, image2_file_name, max_abs_err_tolerance) :
-    img_obj = Image.open(image1_file_name)
-    img = img_obj.convert('L')
-    img_obj.close()
-    img1 = np.asarray(img)
+def convertImageToPNM (input_image_file_name, output_pnm_file_name) :
+    img = loadImageAsGrayOrRGB(input_image_file_name)
+    img.save(output_pnm_file_name)
+    return img.width * img.height
+
+
+
+def check2Images (image_file_name1, image_file_name2, max_abs_err_tolerance) :
+    img1 = loadImageAsGrayOrRGB(image_file_name1)
+    img2 = loadImageAsGrayOrRGB(image_file_name2)
     
-    img_obj = Image.open(image2_file_name)
-    img = img_obj.convert('L')
-    img_obj.close()
-    img2 = np.asarray(img)
+    img1 = np.asarray(img1)
+    img2 = np.asarray(img2)
     
-    h1, w1 = img1.shape
-    h2, w2 = img2.shape
+    assert img1.shape == img2.shape, 'different shape :  img1.shape=%s  img2.shape=%s' % (str(img1.shape), str(img2.shape))
     
-    assert h1 == h2, 'different height: %d %d' % (h1, h2)
-    assert w1 == w2, 'different width : %d %d' % (w1, w2)
+    img1 = img1.reshape([-1])
+    img2 = img2.reshape([-1])
     
     max_abs_err = np.max(np.abs(np.int32(img1) - np.int32(img2)))
     
@@ -67,66 +66,80 @@ def check2Images (image1_file_name, image2_file_name, max_abs_err_tolerance) :
 
 
 
-
-
 if __name__ == '__main__' :
     
+    # parse command line args -------------------------------------------------------------
+    if '--no-check' in sys.argv :
+        sys.argv.remove('--no-check')
+        check = False
+    else :
+        check = True
+    
     try :
-        in_dir = sys.argv[1]
+        in_dir    = sys.argv[1]
+        near_list = [int(near) for near in sys.argv[2:]]
     except :
-        print('Usage: python %s <input_dir_name>' % sys.argv[0])
+        print('Usage    : python %s <input_dir_name> [<near_list>] [--no-check]' % sys.argv[0])
+        print('Example1 : python %s ./images 0 1 2'                              % sys.argv[0])
+        print('Example2 : python %s ./images 1 3 --no-check'                     % sys.argv[0])
         exit(-1)
     
+    if len(near_list) <= 0 :
+        near_list = [0]
     
-    origin_total_size = 0
-    jlsx_total_size   = [0] * len(NEAR_LIST)
+    
+    file_count       = 0
+    total_n_pixel    = 0
+    total_cmprs_size = [0] * len(near_list)
     
     
     for fname in os.listdir(in_dir) :
         fname_full = in_dir + os.path.sep + fname
         
         try :
-            convertImageToPGM(fname_full, TMP_PGM_FILE1)
+            n_pixel = convertImageToPNM(fname_full, TMP_PNM_FILE1)
         except :
             print('skip %s' % fname)
             continue
         
-        print('%s ----------------------------------------------' % fname )
+        file_count    += 1
+        total_n_pixel += n_pixel
         
-        origin_total_size += os.path.getsize(TMP_PGM_FILE1)
+        print('BPP of %s:' % fname , end='' , flush=True )
         
-        for inear, near in enumerate(NEAR_LIST) :
-            try :
-                callJLSx(TMP_PGM_FILE1, TMP_JLSx_FILE, mode='encode', near=near)
-            except AssertionError as e:
-                print('*** %s JLS encode error' % fname)
+        for (i, near) in enumerate(near_list) :
+            if 0 != callCodec(TMP_PNM_FILE1, TMP_CMPRS_FILE, near) :
+                print('\n*** %s encode error' % fname)
                 exit(-1)
             
-            try :
-                callJLSx(TMP_PGM_FILE2, TMP_JLSx_FILE, mode='decode')
-            except AssertionError as e:
-                print('*** %s JLS decode error' % fname)
-                exit(-1)
+            if check :
+                if 0 != callCodec(TMP_CMPRS_FILE, TMP_PNM_FILE2) :
+                    print('\n*** %s decode error' % fname)
+                    exit(-1)
+                
+                check2Images(TMP_PNM_FILE1, TMP_PNM_FILE2, near)
             
-            try :
-                check2Images(TMP_PGM_FILE1, TMP_PGM_FILE2, near)
-            except AssertionError as e:
-                print('*** %s verify failed: %s' % (fname, str(e)) )
-                exit(-1)
+            size = os.path.getsize(TMP_CMPRS_FILE)
             
-            jlsx_total_size[inear] += os.path.getsize(TMP_JLSx_FILE)
+            total_cmprs_size[i] += size
             
-            print('near=%d   compressed_ratio=%.3f' % (near, os.path.getsize(TMP_PGM_FILE1) / os.path.getsize(TMP_JLSx_FILE) ) )
+            bpp = 8.0 * size / n_pixel
+            
+            print('     %.3f (near=%d)' % (bpp, near) , end='' , flush=True )
         
-        print('total compression ratios:' , end='' )
-        
-        for near, jlsx_size in zip(NEAR_LIST, jlsx_total_size) :
-            print('      near=%d  %7.4f' % (near, origin_total_size/jlsx_size) , end='' )
         print()
+        
+        os.remove(TMP_PNM_FILE1)
+        os.remove(TMP_CMPRS_FILE)
+        if check :
+            os.remove(TMP_PNM_FILE2)
     
     
-    os.remove(TMP_PGM_FILE1)
-    os.remove(TMP_JLSx_FILE)
-    os.remove(TMP_PGM_FILE2)
-
+    print('BPP of all %d files:' % file_count , end='' , flush=True )
+    
+    for near, size in zip(near_list, total_cmprs_size) :
+        bpp = 8.0 * size / total_n_pixel
+        print('     %.3f (near=%d)' % (bpp, near) , end='' , flush=True )
+    
+    print()
 

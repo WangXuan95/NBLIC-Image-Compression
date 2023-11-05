@@ -18,13 +18,13 @@ extern int writeBytesToFile  (const char *p_filename, const unsigned char *p_buf
 // return:
 //     -1 : failed
 //      0 : success
-extern int loadPgmImageFile  (const char *p_filename,       unsigned char *p_img, int *p_ysz, int *p_xsz);
+extern int loadPgmImageFile  (const char *p_filename,       unsigned char *p_img, int *p_height, int *p_width);
 
 
 // return:
 //     -1 : failed
 //      0 : success
-extern int writePgmImageFile (const char *p_filename, const unsigned char *p_img, int ysz, int xsz);
+extern int writePgmImageFile (const char *p_filename, const unsigned char *p_img, int height, int width);
 
 
 #endif // __FILE_IO_H__

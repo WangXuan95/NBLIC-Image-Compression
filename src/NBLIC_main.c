@@ -1,25 +1,7 @@
-// Copyright https://github.com/WangXuan95
-// source: https://github.com/WangXuan95/JPEG-LS_extension
-// 
-// A enhanced implementation of JPEG-LS extension (ITU-T T.870) image compressor/decompressor
-// which will get a better compression ratio than original JPEG-LS extension,
-// and also, significantly better than JPEG-LS baseline (ITU-T T.87)
-//
-// It now supports lossless & lossy compression of 8-bit gray images
-//
-// for standard documents, see:
-//    JPEG-LS baseline  (ITU-T T.87) : https://www.itu.int/rec/T-REC-T.87/en
-//    JPEG-LS extension (ITU-T T.870): https://www.itu.int/rec/T-REC-T.870/en
-// Warning: This implementation is not compliant with these standards, although it is modified from ITU-T T.870
-//
-// This is an example, including a main() function
-//
-
-
 #include <stdio.h>
 
 #include "FileIO.h"
-#include "JLSx.h"
+#include "NBLIC.h"
 
 
 
@@ -42,29 +24,27 @@ static int suffix_match (const char *string, const char *suffix) {
 }
 
 
-
-#define   MAX_YSZ            8192
-#define   MAX_XSZ            8192
-#define   BUF_MAX_LEN        (MAX_YSZ*MAX_XSZ*2)
+#define   IMG_MAX_LEN   (NBLIC_MAX_HEIGHT * NBLIC_MAX_WIDTH)
+#define   BUF_MAX_LEN   (IMG_MAX_LEN * 2)
 
 
 // return:
 //     -1 : exit with error
 //      0 : exit normally
 int main (int argc, char **argv) {
-    static unsigned char img [MAX_YSZ*MAX_XSZ];
-    static unsigned char buf [BUF_MAX_LEN] = {0};
+    static unsigned char img [IMG_MAX_LEN];
+    static unsigned char buf [BUF_MAX_LEN];
 
-    int ysz=-1 , xsz=-1 , near=0 , len;
+    int height=-1 , width=-1 , near=0 , len;
 
     const char *p_src_fname=NULL, *p_dst_fname=NULL;
     
-    if (argc < 3) {                                    // illegal arguments: print USAGE and exit
+    if (argc < 3) {                                      // illegal arguments: print USAGE and exit
         printf("Usage:\n");
         printf("    Compress:\n");
-        printf("        %s  <input-image-file(.pgm)>  <output-file(.jlsx)>  [<near>]\n" , argv[0] );
+        printf("        %s  <input-image-file(.pgm)>  <output-file(.nblic)>  [<near>]\n" , argv[0] );
         printf("    Decompress:\n");
-        printf("        %s  <input-file(.jlsx)>  <output-image-file(.pgm)>\n" , argv[0] );
+        printf("        %s  <input-file(.nblic)>  <output-image-file(.pgm)>\n" , argv[0] );
         printf("\n");
         return -1;
     }
@@ -79,29 +59,28 @@ int main (int argc, char **argv) {
     printf("  input  file        = %s\n" , p_src_fname);
     printf("  output file        = %s\n" , p_dst_fname);
     
-    if ( suffix_match(p_src_fname, ".pgm") ) {         // src file is a pgm, compress
+    if ( !suffix_match(p_src_fname, ".nblic") ) {         // src file is not .nblic, compress
         
-        printf("  near               = %d\n" , near);
-        
-        if ( loadPgmImageFile(p_src_fname, img, &ysz, &xsz) ) {
+        if ( loadPgmImageFile(p_src_fname, img, &height, &width) ) {
             printf("  ***Error : open %s failed\n", p_src_fname);
             return -1;
         }
         
-        printf("  input image shape  = %d x %d\n" , xsz , ysz );
-        printf("  input image size   = %d B\n" , xsz*ysz );
+        printf("  input image shape  = %d x %d\n" , width , height );
+        printf("  input image size   = %d B\n"    , width * height );
         printf("  compressing ...\n");
         
-        len = JLSxCompress(buf, img, ysz, xsz, near);
+        len = NBLICcodec(0, buf, img, &height, &width, &near);
         
         if (len < 0) {
             printf("  ***Error : compress failed\n");
             return -1;
         }
         
+        printf("  near               = %d\n"   , near);
         printf("  output size        = %d B\n" , len );
-        printf("  compression rate   = %.5f\n" , (1.0*xsz*ysz)/len );
-        printf("  compression bpp    = %.5f\n" , (8.0*len)/(xsz*ysz) );
+        printf("  compression rate   = %.5f\n" , (1.0*width*height)/len );
+        printf("  compression bpp    = %.5f\n" , (8.0*len)/(width*height) );
         
         if ( writeBytesToFile(p_dst_fname, buf, len) ) {
             printf("  ***Error : write %s failed\n", p_dst_fname);
@@ -120,15 +99,15 @@ int main (int argc, char **argv) {
         printf("  input size         = %d B\n" , len );
         printf("  decompressing ...\n");
         
-        if ( JLSxDecompress(buf, img, &ysz, &xsz, &near) < 0 ) {
+        if ( NBLICcodec(1, buf, img, &height, &width, &near) < 0 ) {
             printf("  ***Error : decompress failed\n");
             return -1;
         }
         
-        printf("  near               = %d\n" , near);
-        printf("  output image shape = %d x %d\n"  , xsz , ysz );
+        printf("  near               = %d\n"      , near);
+        printf("  output image shape = %d x %d\n" , width , height );
         
-        if ( writePgmImageFile(p_dst_fname, img, ysz, xsz) ) {
+        if ( writePgmImageFile(p_dst_fname, img, height, width) ) {
             printf("  ***Error : write %s failed\n", p_dst_fname);
             return -1;
         }

@@ -1,32 +1,22 @@
  ![language](https://img.shields.io/badge/language-C-green.svg) ![build](https://img.shields.io/badge/build-Windows-blue.svg) ![build](https://img.shields.io/badge/build-linux-FF1010.svg)
 
-# JPEG-LS extension (an enhanced version)
+# NBLIC: lossless image compression
 
-An enhanced version of JPEG-LS extension (ITU-T T.870) image compressor/decompressor in C language.
+NBLIC - Niu-Bi Lossless Image Compression, is a lossless & near-lossless image codec.
 
-Its lossless compression ratio is better than PNG, JPEG2000, WEBP, HEIF, JPEG-LS baseline, and JPEG-LS extension.
+### Development progress
 
-　
+- [x] 8-bit gray image lossless encode/decode is support now.
+- [x] 8-bit gray image near-lossless encode/decode is support now.
+- [ ] 24-bit RGB image lossless encode/decode will be supported in the future.
+- [ ] 24-bit RGB image near-lossless encode/decode will be supported in the future.
 
-## Why ?
+### Features
 
-JPEG-LS (JLS) is a lossless/lossy compression standard. There are 2 generations:
-
-- JPEG-LS baseline (ITU-T T.87) [8]
-- JPEG-LS extension (ITU-T T.870) [1], which has a higher compression ratio.
-
-The current publicly implementations online are all about JPEG-LS baseline, and none of them supports JPEG-LS extension.
-
-This repo is a enhanced implementation of JPEG-LS extension, which gets a higher compression ratio than original JPEG-LS extension.
-
-Note: due to my modification, this repo is not compatible with the original JPEG-LS extension standard.
-
-　
-
-# Development progress
-
-- [x] grey 8 bit lossless image compress/decompress
-- [x] grey 8 bit lossy (near-lossless) image compress/decompress
+- **Very high compression ratio**, higher than state-of-the-art lossless image compression standards such as JPEG-XL lossless, AVIF lossless, etc.
+- **Low code** with pure C language (only 700 lines of C of encoder/decoder).
+- A bit slow, but the encoding is still faster than the brute encoding mode of JPEG-XL/WEBP/WEBP2/AVIF.
+- Just single pass scan encode/decode, good for FPGA hardware streaming implementation.
 
 　
 
@@ -34,11 +24,11 @@ Note: due to my modification, this repo is not compatible with the original JPEG
 
 The code files are in pure-C, located in the [src](./src) folder:
 
-- `JLSx.c` : Implement a enhanced JLS extension compress/decompress
-- `JLSx.h` : Expose the functions of enhanced JLS extension compress/decompress to users.
+- `NBLIC.c` : Implement NBLIC encoder/decoder
+- `NBLIC.h` : Expose the functions of NBLIC encoder/decoder to users.
 - `FileIO.c` : Provide PGM image file reading/writing functions, provide binary file reading/writing functions.
 - `FileIO.h` : Expose the functions in `FileIO.c` to users.
-- `JLSxMain.c` : A main program with `main()` function, which call `JLSx.h` and `FileIO.h` to achieve image file compression/decompression.
+- `NBLIC_main.c` : A main program with `main()` function, which call `NBLIC.h` and `FileIO.h` to achieve image file encoding/decoding.
 
 　
 
@@ -46,111 +36,182 @@ The code files are in pure-C, located in the [src](./src) folder:
 
 ### Compile in Windows (CMD)
 
-If you add the Microsoft C compiler (`cl. exe`) of Visual Studio to environment variables, you can compile using the command line (CMD).
+If you add the Microsoft C compiler (`cl.exe`) to environment variables, you can compile using the command line (CMD).
 
 ```powershell
-cl src\*.c /FeJLSx.exe /Ox
+cl src\*.c /Fenblic_codec.exe /Ox
 ```
 
-We'll get the executable file `JLSx.exe` . Here I've compiled it for you, you can use it directly.
+We'll get the executable file `nblic_codec.exe` . Here I've compiled it for you, you can use it directly.
 
 ### Compile in Linux
 
 Run the command in the current directory:
 
 ```bash
-gcc src/*.c -o JLSx -O3 -Wall
+gcc src/*.c -o nblic_codec -O3 -Wall
 ```
 
-We'll get the binary file `JLSx` . Here I've compiled it for you, you can use it directly.
+We'll get the binary file `nblic_codec` . Here I've compiled it for you, you can use it directly.
 
 　
 
-# Run image compression/decompression
+# Run image encode/decode
 
-This program can compress `.pgm` image file to `.jlsx` image file. Or decompress  `.jlsx` image file to `.pgm` image file.
+This program can compress a PGM image file (.pgm) to a NBLIC file (.nblic), or decompress a NBLIC file to a PGM image file
 
-Note that `.pgm` is a simple uncompressed image format (see PGM Image File Specification [2]). PGM file format contains:
+Note that PGM is a simple uncompressed image format (see PGM Image File Specification [2]). PGM file contains:
 
 - A simple header that contains the width, height, and depth of this image.
 - The raw pixel values of this image.
 
 ### Run in Windows (CMD)
 
-Use following command to compress `1.pgm` to `1.jlsx`
+Use following command to compress `1.pgm` to `1.nblic`
 
 ```powershell
-JLSx.exe 1.pgm 1.jlsx [near]
+nblic_codec.exe 1.pgm 1.nblic [near]
 ```
 
 Where `[near]` is a optional parameter of range 0\~9 :
 
 - 0 : lossless (default)
-- 1\~9 : lossy. The larger the near value, the higher distortion and the lower compressed size.
+- 1\~9 : near-lossless. The larger the near value, the higher distortion and the lower compressed size.
 
-Use following command to compress `1.jlsx` to `1.pgm`
+Use following command to decompress `1.nblic` to `1.pgm`
 
 ```powershell
-JLSx.exe 1.jlsx 1.pgm
+nblic_codec.exe 1.nblic 1.pgm
 ```
 
 ### Run in Linux
 
-The command format is similar to Windows. You only need to replace the executable file name with `./JLSx` .
+The command format is similar to Windows. You only need to replace the executable file name with `./nblic_codec` .
 
 　
 
-# Evaluating compression ratio
+　
 
-This section presents the results of comparing **enhanced JPEG-LS extension** (this design) to other lossless image compression formats.
+# Comparison
+
+This section presents the results of comparing **NBLIC** (this design) to other lossless or near-lossless image compression formats.
 
 ## Formats for participating in comparison
 
-The following table shows the formats involved in the comparison and how they were generated. Note that they all operate in lossless compression mode.
+The following table shows the image formats involved in the comparison.
 
-|          Compressed format          |   Using what software?    |          options          |          meaning of options          |
-| :---------------------------------: | :-----------------------: | :-----------------------: | :----------------------------------: |
-|                 PNG                 |        OptiPNG [3]        |           `-o7`           |         heaviest compression         |
-|              JPEG2000               |  Python Pillow 9.5.0 [4]  |   `irreversible=False`    |         lossless compression         |
-|                WEBP                 |  Python Pillow 9.5.0 [4]  | `lossless=True, method=6` |    lossless heaviest compression     |
-|   FLIF (now part of JPEG-XL) [5]    |         FLIF [5]          |        `-N -E100`         | non-interlaced, heaviest compression |
-|              CALIC [6]              | CALIC executable file [7] |            `0`            |         lossless compression         |
-|  JPEG-LS baseline (ITU-T T.87) [8]  |  Python Pillow-jpls [9]   |         `near=0`          |         lossless compression         |
-| JPEG-LS extension (ITU-T T.870) [1] |             *             |         `near=0`          |         lossless compression         |
-|   **enhanced JPEG-LS extension**    |       **This repo**       |         `near=0`          |         lossless compression         |
+|          Compressed format          |   Using what software?    |
+| :---------------------------------: | :-----------------------: |
+|   JPEG2000 lossless    |          Python pillow 9.5.0 [4]          |
+| PNG (deeply optimized) |                OptiPNG [3]                |
+|      JPEG-LS [8]       | Python pillow 9.5.0 with pillow-jpls [10] |
+|     HEIF lossless      | Python pillow 9.5.0 with pillow-heif [11] |
+|     AVIF lossless      | Python pillow 9.5.0 with pillow-heif [11] |
+|     WEBP lossless      |          Python pillow 9.5.0 [4]          |
+|    WebP2 lossless *    |                     -                     |
+|              CALIC [6]              | CALIC executable file [7] |
+| JPEG-XL lossless* [5]  |                 FLIF [5]                  |
+|              **NBLIC**              |       **This repo**       |
 
->  \* I implemented JPEG-LS extension by myself for comparison, but I didn't open source it.
+> \* I would like to add WebP2's data in the future, but I currently do not have it.
+>
+> \* **JPEG-XL lossless (also called FLIF)** is the state-of-the-art lossless image compression standard by 2023. WebP2 lossless may be on par with JPEG-XL.
+
+　
+
+### Encode Commands / Arguments
+
+The following table shows the compression command/arguments for each formats. Note that they all operate in lossless compression mode.
+
+I try to use the "highest compression ratio" configuration of these formats. But it is not yet clear whether the HEIF and AVIF are really operated in the highest compression ratio mode.
+
+Note that since we use Python's pillow library to encode/decode some formats, some of the following instructions are in the Python language
+
+|  format   |                  Encode command / arguments                  | meaning                      |
+| :-------: | :----------------------------------------------------------: | :--------------------------- |
+| JPEG2000  |           `img.save('a.j2k', irreversible=False)`            | lossless compression         |
+|    PNG    |              `optipng.exe -o7 a.pgm -out a.png`              | deepest lossless compression |
+|  JPEG-LS  |           `img.save('a.jls', irreversible=False)`            | lossless compression         |
+|   HEIF    | `img.save('a.heif', quality=-1, enc_params={'preset':'placebo'})` | deepest lossless compression |
+|   AVIF    |               `img.save('a.heif', quality=-1)`               | lossless compression         |
+|   WEBP    |        `img.save('a.webp', lossless=True, method=6)`         | deepest lossless compression |
+|   CALIC   |    `calic8e.exe a.raw <width> <height> <depth> 0 a.calic`    | lossless compression         |
+|  JPEG-XL  |              `./flif -e -N -E1100 a.pgm a.flif`              | deepest lossless compression |
+| **NBLIC** |               `nblic_codec.exe a.pgm a.nblic`                | lossless compression         |
+
+　
+
+### Decode Commands / Arguments
+
+Decoding commands are simple, as shown in following table.
+
+|  format   |      Encode command / arguments       |
+| :-------: | :-----------------------------------: |
+| JPEG2000  | `numpy.asarray(Image.open('a.j2k'))`  |
+|    PNG    | `numpy.asarray(Image.open('a.png'))`  |
+|  JPEG-LS  | `numpy.asarray(Image.open('a.jls'))`  |
+|   HEIF    | `numpy.asarray(Image.open('a.heif'))` |
+|   AVIF    | `numpy.asarray(Image.open('a.avif'))` |
+|   WEBP    | `numpy.asarray(Image.open('a.webp'))` |
+|   CALIC   |      `calic8d.exe a.calic a.raw`      |
+|  JPEG-XL  |       `./flif -d a.flif a.pgm`        |
+| **NBLIC** |    `nblic_codec.exe a.nblic a.pgm`    |
+
+　
 
 ## Benchmark
 
-Use the following two image datasets to compare compression ratios.
+Use the following two image datasets in comparison.
 
 |                                 |                  small image benchmark                   |                    large image benchmark                     |
 | :-----------------------------: | :------------------------------------------------------: | :----------------------------------------------------------: |
-|             source              | [Kodak Image Suite](https://r0k.us/graphics/kodak/) [10] | Gray 8 bit in [this website](http://imagecompression.info/test_images/) |
+|             source              | [Kodak Image Suite](https://r0k.us/graphics/kodak/) [11] | Gray 8 bit in [this website](http://imagecompression.info/test_images/) [12] |
 |           preprocess            |                convert RGB to grey 8-bit                 |                           needn't                            |
 | pixel format before compression |                        grey 8-bit                        |                          grey 8-bit                          |
 | file format before compression  |                           .pgm                           |                             .pgm                             |
 | data volume before compression  |                      9437544 bytes                       |                       162870743 bytes                        |
 |           image count           |                            24                            |                              15                              |
-|              notes              |        See [img_kodak](./img_kodak) in this repo         |      didn't include in this repo. Download it yourself       |
+|              notes              |        See [img_kodak](./img_kodak) in this repo         |                   download it by yourself                    |
 
-## result of compression ratio
+　
 
-Compress the above two benchmarks and obtain the compression ratio as follows.
+## Comparison results on the small image benchmark [11]
 
-Note: Compression ratio=size before compression/size after compression. The larger the better.
+The following table shows the **compressed BPP, compression time**, and **decompression time** on the small image benchmark
 
-|             Compressed format              | small image benchmark | large image benchmark |
-| :----------------------------------------: | :-------------------: | :-------------------: |
-|                    PNG                     |         1.725         |         2.202         |
-|                  JPEG2000                  |         1.793         |         2.309         |
-|                    WEBP                    |         1.847         |         2.356         |
-|         FLIF (now part of JPEG-XL)         |         1.864         |  **2.534** (**1st**)  |
-|                   CALIC                    |  **1.913** (**1st**)  |         2.458         |
-|       JPEG-LS baseline (ITU-T T.87)        |         1.845         |         2.333         |
-|      JPEG-LS extension (ITU-T T.870)       |         1.884         |         2.411         |
-| **enhanced JPEG-LS extension (this repo)** |  **1.911** (**2nd**)  |  **2.465** (**2nd**)  |
+Note: Compressed BPP = total size after compression in bits / total pixel count. The smaller the better.
+
+Compression time and Decompress time is the total time to compress/decompress the entire image dataset.
+
+| Compressed format |   compressed BPP   | compress time (s) | decompress time (s) |
+| :---------------: | :----------------: | :---------------: | :-----------------: |
+|     JPEG2000      |        4.46        |        1.1        |         0.8         |
+|        PNG        |        4.64        |       124.3       |         0.1         |
+|      JPEG-LS      |        4.34        |        0.5        |         0.5         |
+|       HEIF        |        4.75        |        2.3        |         0.7         |
+|       AVIF        |        4.64        |        2.9        |         0.8         |
+|       WEBP        |        4.33        |       118.6       |         0.3         |
+|       CALIC       |     4.18 (2nd)     |        8.1        |         7.6         |
+|      JPEG-XL      |        4.30        |       10.0        |         3.1         |
+|     **NBLIC**     | **4.11** (**1st**) |       27.8        |        27.0         |
+
+
+
+## Comparison results on the large image benchmark [12]
+
+The following table shows the **compressed BPP, compression time**, and **decompression time** on the large image benchmark
+
+| Compressed format |   compressed BPP   | compress time (s) | decompress time (s) |
+| :---------------: | :----------------: | :---------------: | :-----------------: |
+|     JPEG2000      |        3.46        |       13.6        |        10.5         |
+|        PNG        |        3.63        |      4462.5       |         2.2         |
+|      JPEG-LS      |        3.44        |        4.9        |         4.1         |
+|       HEIF        |        3.96        |       17.6        |         6.4         |
+|       AVIF        |        3.74        |       23.6        |         7.7         |
+|       WEBP        |        3.39        |      1910.1       |         3.0         |
+|       CALIC       |        3.25        |       38.8        |        36.9         |
+|      JPEG-XL      |     3.16 (2nd)     |       289.6       |        90.7         |
+|     **NBLIC**     | **3.03** (**1st**) |       511.4       |        468.1        |
 
 　
 
@@ -160,7 +221,7 @@ Note: Compression ratio=size before compression/size after compression. The larg
 
 # Reference
 
-[1] JPEG-LS extension (ITU-T T.870) : https://www.itu.int/rec/T-REC-T.870/en 
+[1] ANS entropy coding combining speed of Huffman coding with compression rate of arithmetic coding : https://arxiv.org/abs/1311.2540
 
 [2] PGM Image File Specification : https://netpbm.sourceforge.net/doc/pgm.html#index
 
@@ -176,6 +237,10 @@ Note: Compression ratio=size before compression/size after compression. The larg
 
 [8] JPEG-LS baseline (ITU-T T.87) : https://www.itu.int/rec/T-REC-T.87/en
 
-[9] pillow-jpls: A JPEG-LS plugin for the Python *Pillow* library: https://github.com/planetmarshall/pillow-jpls
+[9] JPEG-LS extension (ITU-T T.870) : https://www.itu.int/rec/T-REC-T.870/en 
 
-[10] Kodak Lossless True Color Image Suite : https://r0k.us/graphics/kodak/
+[10] pillow-jpls: A JPEG-LS plugin for the Python *Pillow* library: https://github.com/planetmarshall/pillow-jpls
+
+[11] Kodak Lossless True Color Image Suite : https://r0k.us/graphics/kodak/
+
+[12] Rawzor's Lossless compression software for camera raw images: https://imagecompression.info/test_images/
