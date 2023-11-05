@@ -127,7 +127,7 @@ I try to use the "highest compression ratio" configuration of these formats. But
 
 Note that since we use Python's pillow library to encode/decode some formats, some of the following instructions are in the Python language
 
-|  format   |                  Encode command / arguments                  | meaning                      |
+|  Format   |                  Encode command / arguments                  | meaning                      |
 | :-------: | :----------------------------------------------------------: | :--------------------------- |
 | JPEG2000  |           `img.save('a.j2k', irreversible=False)`            | lossless compression         |
 |    PNG    |              `optipng.exe -o7 a.pgm -out a.png`              | deepest lossless compression |
@@ -145,7 +145,7 @@ Note that since we use Python's pillow library to encode/decode some formats, so
 
 Decoding commands are simple, as shown in following table.
 
-|  format   |      Encode command / arguments       |
+|  Format   |      Decode command / arguments       |
 | :-------: | :-----------------------------------: |
 | JPEG2000  | `numpy.asarray(Image.open('a.j2k'))`  |
 |    PNG    | `numpy.asarray(Image.open('a.png'))`  |
@@ -183,17 +183,17 @@ Note: Compressed BPP = total size after compression in bits / total pixel count.
 
 Compression time and Decompress time is the total time to compress/decompress the entire image dataset.
 
-| Compressed format |   compressed BPP   | compress time (s) | decompress time (s) |
-| :---------------: | :----------------: | :---------------: | :-----------------: |
-|     JPEG2000      |        4.46        |        1.1        |         0.8         |
-|        PNG        |        4.64        |       124.3       |         0.1         |
-|      JPEG-LS      |        4.34        |        0.5        |         0.5         |
-|       HEIF        |        4.75        |        2.3        |         0.7         |
-|       AVIF        |        4.64        |        2.9        |         0.8         |
-|       WEBP        |        4.33        |       118.6       |         0.3         |
-|       CALIC       |     4.18 (2nd)     |        8.1        |         7.6         |
-|      JPEG-XL      |        4.30        |       10.0        |         3.1         |
-|     **NBLIC**     | **4.11** (**1st**) |       27.8        |        27.0         |
+|  Format   |   compressed BPP   | compress time (s) | decompress time (s) |
+| :-------: | :----------------: | :---------------: | :-----------------: |
+| JPEG2000  |        4.46        |        1.1        |         0.8         |
+|    PNG    |        4.64        |       124.3       |         0.1         |
+|  JPEG-LS  |        4.34        |        0.5        |         0.5         |
+|   HEIF    |        4.75        |        2.3        |         0.7         |
+|   AVIF    |        4.64        |        2.9        |         0.8         |
+|   WEBP    |        4.33        |       118.6       |         0.3         |
+|   CALIC   |     4.18 (2nd)     |        8.1        |         7.6         |
+|  JPEG-XL  |        4.30        |       10.0        |         3.1         |
+| **NBLIC** | **4.11** (**1st**) |       27.8        |        27.0         |
 
 
 
@@ -201,17 +201,17 @@ Compression time and Decompress time is the total time to compress/decompress th
 
 The following table shows the **compressed BPP, compression time**, and **decompression time** on the large image benchmark
 
-| Compressed format |   compressed BPP   | compress time (s) | decompress time (s) |
-| :---------------: | :----------------: | :---------------: | :-----------------: |
-|     JPEG2000      |        3.46        |       13.6        |        10.5         |
-|        PNG        |        3.63        |      4462.5       |         2.2         |
-|      JPEG-LS      |        3.44        |        4.9        |         4.1         |
-|       HEIF        |        3.96        |       17.6        |         6.4         |
-|       AVIF        |        3.74        |       23.6        |         7.7         |
-|       WEBP        |        3.39        |      1910.1       |         3.0         |
-|       CALIC       |        3.25        |       38.8        |        36.9         |
-|      JPEG-XL      |     3.16 (2nd)     |       289.6       |        90.7         |
-|     **NBLIC**     | **3.03** (**1st**) |       511.4       |        468.1        |
+|  Format   |   compressed BPP   | compress time (s) | decompress time (s) |
+| :-------: | :----------------: | :---------------: | :-----------------: |
+| JPEG2000  |        3.46        |       13.6        |        10.5         |
+|    PNG    |        3.63        |      4462.5       |         2.2         |
+|  JPEG-LS  |        3.44        |        4.9        |         4.1         |
+|   HEIF    |        3.96        |       17.6        |         6.4         |
+|   AVIF    |        3.74        |       23.6        |         7.7         |
+|   WEBP    |        3.39        |      1910.1       |         3.0         |
+|   CALIC   |        3.25        |       38.8        |        36.9         |
+|  JPEG-XL  |     3.16 (2nd)     |       289.6       |        90.7         |
+| **NBLIC** | **3.03** (**1st**) |       511.4       |        468.1        |
 
 　
 
