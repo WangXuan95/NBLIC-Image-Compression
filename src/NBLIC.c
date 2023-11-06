@@ -24,7 +24,7 @@
 
 #include "NBLIC.h"
 
-const char *title = "NBLICv0.1";
+const char *title = "NBLIC0.1";
 
 typedef    unsigned char          UI8;
 typedef    long long int          I64;
@@ -61,7 +61,6 @@ typedef    long long int          I64;
 #define    MAX_COUNTER            256
 #define    PROB_ONE               (1 << 16)
 
-#define    EDP_ENABLE             1
 #define    EDP_I                  5
 #define    EDP_N                  6
 #define    EDP_T1                 5
@@ -69,6 +68,9 @@ typedef    long long int          I64;
 #define    EDP_T3                 6
 #define    EDP_M                  (EDP_T1 + (1 + EDP_T1 + EDP_T2) * EDP_T3)
 #define    EDP_SFT                12
+
+#define    MIN_EFFORT             1
+#define    MAX_EFFORT             2
 
 
 
@@ -639,7 +641,7 @@ static void Zcodec (CODEC_t *p_co, int k_step, BIN_CNT_t bc_tree [][256], int qu
 }
 
 
-static void putHeader (UI8 **pp_buf, int n_channel, int height, int width, int near, int k_step) {
+static void putHeader (UI8 **pp_buf, int n_channel, int height, int width, int near, int k_step, int effort) {
     int i;
     for (i=0; title[i]!=0; i++)                 // put title
         *((*pp_buf)++) = (UI8)title[i];
@@ -650,28 +652,30 @@ static void putHeader (UI8 **pp_buf, int n_channel, int height, int width, int n
     *((*pp_buf)++) = (UI8)(width >> 0);
     *((*pp_buf)++) = (UI8)near;                 // put near
     *((*pp_buf)++) = (UI8)k_step;               // put k_step
+    *((*pp_buf)++) = (UI8)effort;               // put effort
 }
 
 
 // return:  -1:failed  0:success
-static int getHeader (UI8 **pp_buf, int *p_n_channel, int *p_height, int *p_width, int *p_near, int *p_k_step) {
+static int getHeader (UI8 **pp_buf, int *p_n_channel, int *p_height, int *p_width, int *p_near, int *p_k_step, int *p_effort) {
     int i;
     for (i=0; title[i]; i++)                    // check title 
         if ( *((*pp_buf)++) != (UI8)title[i] )
             return -1;
-    *p_n_channel = *((*pp_buf)++);              // get n_channel 
-    *p_height    = ( *((*pp_buf)++) ) << 8;     // get image height 
+    *p_n_channel =   *((*pp_buf)++);            // get n_channel
+    *p_height    = ( *((*pp_buf)++) ) << 8;     // get image height
     *p_height   +=   *((*pp_buf)++);
-    *p_width     = ( *((*pp_buf)++) ) << 8;     // get image width  
+    *p_width     = ( *((*pp_buf)++) ) << 8;     // get image width
     *p_width    +=   *((*pp_buf)++);
-    *p_near      =   *((*pp_buf)++);            // get near 
-    *p_k_step    =   *((*pp_buf)++);            // get k_step 
+    *p_near      =   *((*pp_buf)++);            // get near
+    *p_k_step    =   *((*pp_buf)++);            // get k_step
+    *p_effort    =   *((*pp_buf)++);            // get effort
     return 0;
 }
 
 
 // return:  -1:failed  0:success
-static int checkParam (int height, int width, int n_channel, int near, int k_step) {
+static int checkParam (int height, int width, int n_channel, int near, int k_step, int effort) {
     if (height < 0 || height > NBLIC_MAX_HEIGHT)
         return -1;
     if (width < 0 || width > NBLIC_MAX_WIDTH)
@@ -682,12 +686,14 @@ static int checkParam (int height, int width, int n_channel, int near, int k_ste
         return -1;
     if (k_step < 3 || k_step > N_QD)
         return -1;
+    if (effort < MIN_EFFORT || effort > MAX_EFFORT)
+        return -1;
     return 0;
 }
 
 
 
-int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width, int *p_near) {
+int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width, int *p_near, int *p_effort) {
     int n_channel=1, i, j, k_step;
     
     int ctx_array [N_CONTEXT];
@@ -701,15 +707,16 @@ int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width,
     UI8 *p_buf_base = p_buf;
     
     if (decode) {
-        if (getHeader(&p_buf, &n_channel, p_height, p_width, p_near, &k_step))
+        if (getHeader(&p_buf, &n_channel, p_height, p_width, p_near, &k_step, p_effort))
             return -1;
     } else {
-        *p_near = CLIP(*p_near, 0, MAX_NEAR);
-        k_step  = CLIP(3+2*(*p_near), 3, N_QD);
-        putHeader(&p_buf, n_channel, *p_height, *p_width, *p_near, k_step);
+        *p_near   = CLIP(*p_near, 0, MAX_NEAR);
+        k_step    = CLIP(3+2*(*p_near), 3, N_QD);
+        *p_effort = CLIP(*p_effort, MIN_EFFORT, MAX_EFFORT);
+        putHeader(&p_buf, n_channel, *p_height, *p_width, *p_near, k_step, *p_effort);
     }
     
-    if (checkParam(*p_height, *p_width, n_channel, *p_near, k_step))
+    if (checkParam(*p_height, *p_width, n_channel, *p_near, k_step, *p_effort))
         return -1;
     
     codec = newCodec(decode, p_buf);
@@ -736,10 +743,9 @@ int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width,
             
             sampleNeighbourPixels(p_img, (*p_width), i, j, &a, &b, &c, &d, &e, &f, &g, &h, &q, &r, &s);
             
-            #if EDP_ENABLE
-            if ((j%EDP_I) == 0)
-                fit_okay = !fitEDP(vec_r, p_img, (*p_width), i, j);
-            #endif
+            if (*p_effort == MAX_EFFORT)
+                if ((j%EDP_I) == 0)
+                    fit_okay = !fitEDP(vec_r, p_img, (*p_width), i, j);
             
             if (fit_okay)
                 px = doEDP(vec_r, a, b, c, d, e, f, g, h, q, r, s);

@@ -15,7 +15,7 @@ NBLIC - Niu-Bi Lossless Image Compression, is a lossless & near-lossless image c
 
 - **Very high compression ratio**, higher than state-of-the-art lossless image compression standards such as JPEG-XL lossless, AVIF lossless, etc.
 - **Low code** with pure C language (only 700 lines of C of encoder/decoder).
-- A bit slow, but the encoding is still faster than the brute encoding mode of JPEG-XL/WEBP/WEBP2/AVIF.
+- Acceptable performance.
 - Just single pass scan encode/decode, good for FPGA hardware streaming implementation.
 
 　
@@ -70,7 +70,7 @@ Note that PGM is a simple uncompressed image format (see PGM Image File Specific
 Use following command to compress `1.pgm` to `1.nblic`
 
 ```powershell
-nblic_codec.exe 1.pgm 1.nblic [near]
+nblic_codec.exe 1.pgm 1.nblic [near] [effort]
 ```
 
 Where `[near]` is a optional parameter of range 0\~9 :
@@ -78,10 +78,15 @@ Where `[near]` is a optional parameter of range 0\~9 :
 - 0 : lossless (default)
 - 1\~9 : near-lossless. The larger the near value, the higher distortion and the lower compressed size.
 
-Use following command to decompress `1.nblic` to `1.pgm`
+And `[offert]` is a optional parameter of range 1\~2 :
+
+- 1 : fast mode
+- 2 : slow mode, higher compression ratio
+
+Use following command to decompress `1.nblic` to `1.pgm` with `near=0` (lossless) and `effort=2`
 
 ```powershell
-nblic_codec.exe 1.nblic 1.pgm
+nblic_codec.exe 1.nblic 1.pgm 0 2
 ```
 
 ### Run in Linux
@@ -137,7 +142,7 @@ Note that since we use Python's pillow library to encode/decode some formats, so
 |   WEBP    |        `img.save('a.webp', lossless=True, method=6)`         | deepest lossless compression |
 |   CALIC   |    `calic8e.exe a.raw <width> <height> <depth> 0 a.calic`    | lossless compression         |
 |  JPEG-XL  |              `./flif -e -N -E1100 a.pgm a.flif`              | deepest lossless compression |
-| **NBLIC** |               `nblic_codec.exe a.pgm a.nblic`                | lossless compression         |
+| **NBLIC** |              `nblic_codec.exe a.pgm a.nblic 0`               | lossless compression         |
 
 　
 
@@ -183,17 +188,18 @@ Note: Compressed BPP = total size after compression in bits / total pixel count.
 
 Compression time and Decompress time is the total time to compress/decompress the entire image dataset.
 
-|  Format   |   compressed BPP   | compress time (s) | decompress time (s) |
-| :-------: | :----------------: | :---------------: | :-----------------: |
-| JPEG2000  |        4.46        |        1.1        |         0.8         |
-|    PNG    |        4.64        |       124.3       |         0.1         |
-|  JPEG-LS  |        4.34        |        0.5        |         0.5         |
-|   HEIF    |        4.75        |        2.3        |         0.7         |
-|   AVIF    |        4.64        |        2.9        |         0.8         |
-|   WEBP    |        4.33        |       118.6       |         0.3         |
-|   CALIC   |     4.18 (2nd)     |        8.1        |         7.6         |
-|  JPEG-XL  |        4.30        |       10.0        |         3.1         |
-| **NBLIC** | **4.11** (**1st**) |       27.8        |        27.0         |
+|        Format        | compressed BPP | compress time (s) | decompress time (s) |
+| :------------------: | :------------: | :---------------: | :-----------------: |
+|       JPEG2000       |      4.46      |        1.1        |         0.8         |
+|         PNG          |      4.64      |       124.3       |         0.1         |
+|       JPEG-LS        |      4.34      |        0.5        |         0.5         |
+|         HEIF         |      4.75      |        2.3        |         0.7         |
+|         AVIF         |      4.64      |        2.9        |         0.8         |
+|         WEBP         |      4.33      |       118.6       |         0.3         |
+|        CALIC         |      4.18      |        8.1        |         7.6         |
+|       JPEG-XL        |      4.30      |       10.0        |         3.1         |
+| **NBLIC** (effort=1) | **4.15** (2nd) |       3.15        |        3.04         |
+| **NBLIC** (effort=2) | **4.11** (1st) |       27.8        |        27.0         |
 
 
 
@@ -201,17 +207,18 @@ Compression time and Decompress time is the total time to compress/decompress th
 
 The following table shows the **compressed BPP, compression time**, and **decompression time** on the large image benchmark
 
-|  Format   |   compressed BPP   | compress time (s) | decompress time (s) |
-| :-------: | :----------------: | :---------------: | :-----------------: |
-| JPEG2000  |        3.46        |       13.6        |        10.5         |
-|    PNG    |        3.63        |      4462.5       |         2.2         |
-|  JPEG-LS  |        3.44        |        4.9        |         4.1         |
-|   HEIF    |        3.96        |       17.6        |         6.4         |
-|   AVIF    |        3.74        |       23.6        |         7.7         |
-|   WEBP    |        3.39        |      1910.1       |         3.0         |
-|   CALIC   |        3.25        |       38.8        |        36.9         |
-|  JPEG-XL  |     3.16 (2nd)     |       289.6       |        90.7         |
-| **NBLIC** | **3.03** (**1st**) |       511.4       |        468.1        |
+|        Format        | compressed BPP | compress time (s) | decompress time (s) |
+| :------------------: | :------------: | :---------------: | :-----------------: |
+|       JPEG2000       |      3.46      |       13.6        |        10.5         |
+|         PNG          |      3.63      |      4462.5       |         2.2         |
+|       JPEG-LS        |      3.44      |        4.9        |         4.1         |
+|         HEIF         |      3.96      |       17.6        |         6.4         |
+|         AVIF         |      3.74      |       23.6        |         7.7         |
+|         WEBP         |      3.39      |      1910.1       |         3.0         |
+|        CALIC         |      3.26      |       38.8        |        36.9         |
+|       JPEG-XL        |   3.16 (2nd)   |       289.6       |        90.7         |
+| **NBLIC** (effort=1) | **3.24** (3rd) |       31.7        |        29.3         |
+| **NBLIC** (effort=2) | **3.03** (1st) |       511.4       |        468.1        |
 
 　
 

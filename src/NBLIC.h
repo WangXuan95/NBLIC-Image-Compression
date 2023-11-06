@@ -50,6 +50,10 @@
 //                   0  : lossless
 //                   >0 : near-lossless
 //                   For encode and decode, its operation method is just as same as p_height.
+//    - p_effort : Pointer to the effort value, the larger, the higher compression ratio and the slower encode/decode speed
+//                   1  : fast
+//                   2  : slow
+//                   For encode and decode, its operation method is just as same as p_height.
 //
 // return :
 //    - For encode : positive value : compressed stream length
@@ -57,7 +61,7 @@
 //    - For decode :              0 : success
 //                               -1 : failed
 //
-extern int NBLICcodec (int decode, unsigned char *p_buf, unsigned char *p_img, int *p_height, int *p_width, int *p_near);
+extern int NBLICcodec (int decode, unsigned char *p_buf, unsigned char *p_img, int *p_height, int *p_width, int *p_near, int *p_effort);
 
 
 #endif // __NBLIC_H__
