@@ -24,7 +24,7 @@ CODEC_EXE_FILE = '.\\nblic_codec.exe'          # only for windows           #
 
 
 def callCodec (input_fname, output_fname, near=0) :
-    command = [CODEC_EXE_FILE, input_fname, output_fname, str(near), '1']
+    command = [CODEC_EXE_FILE, input_fname, output_fname, '1', str(near)]
     p = sp.Popen(command, stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.PIPE)
     return p.wait()
 

@@ -35,17 +35,26 @@ int main (int argc, char **argv) {
     static unsigned char img [IMG_MAX_LEN];
     static unsigned char buf [BUF_MAX_LEN];
 
-    int height=-1 , width=-1 , near=0 , effort=0 , len;
+    int height = -1;
+    int width  = -1;
+    int effort = -1;
+    int near   = -1;
+    int len    = -1;
 
     const char *p_src_fname=NULL, *p_dst_fname=NULL;
     
     if (argc < 3) {                                      // illegal arguments: print USAGE and exit
-        printf("Usage:\n");
-        printf("    Compress:\n");
-        printf("        %s  <input-image-file(.pgm)>  <output-file(.nblic)>  [<near>]  [<effort>]\n" , argv[0] );
-        printf("    Decompress:\n");
-        printf("        %s  <input-file(.nblic)>  <output-image-file(.pgm)>\n" , argv[0] );
-        printf("\n");
+        printf("-----------------------------------------------------------------------------------------------------\n");
+        printf("| NBLIC: a lossless & near-lossless image compressor\n");
+        printf("| \n");
+        printf("| Usage:\n");
+        printf("|     Compress:\n");
+        printf("|         %s  <input-image-file(.pgm)>  <output-file(.nblic)>  [<effort>]  [<near>]\n" , argv[0] );
+        printf("|           where:   <effort> can be 1 (fast) or 2 (deepest)\n");
+        printf("|                    <near>   can be 0 (lossless) or 1,2,3,... (lossy)\n");
+        printf("|     Decompress:\n");
+        printf("|         %s  <input-file(.nblic)>  <output-image-file(.pgm)>\n" , argv[0] );
+        printf("-----------------------------------------------------------------------------------------------------\n");
         return -1;
     }
     
@@ -53,12 +62,12 @@ int main (int argc, char **argv) {
     p_dst_fname = argv[2];
     
     if (argc >= 4)
-        if ( sscanf(argv[3], "%d", &near) <= 0 )
-            near = 0;
+        if ( sscanf(argv[3], "%d", &effort) <= 0 )
+            effort = 1;
     
     if (argc >= 5)
-        if ( sscanf(argv[4], "%d", &effort) <= 0 )
-            effort = 1;
+        if ( sscanf(argv[4], "%d", &near) <= 0 )
+            near = 0;
     
     printf("  input  file        = %s\n" , p_src_fname);
     printf("  output file        = %s\n" , p_dst_fname);
@@ -81,8 +90,8 @@ int main (int argc, char **argv) {
             return -1;
         }
         
-        printf("  near               = %d (%s)\n" , near   , (near  <=0)?"lossless":"lossy" );
-        printf("  effort             = %d (%s)\n" , effort , (effort<=1)?"fast"    :"slow"  );
+        printf("  effort             = %d (%s)\n" , effort , (effort<=1)?"fast"    :"deepest");
+        printf("  near               = %d (%s)\n" , near   , (near  <=0)?"lossless":"lossy"  );
         printf("  output size        = %d B\n" , len    );
         printf("  compression rate   = %.5f\n" , (1.0*width*height)/len );
         printf("  compression bpp    = %.5f\n" , (8.0*len)/(width*height) );
@@ -109,8 +118,8 @@ int main (int argc, char **argv) {
             return -1;
         }
         
-        printf("  near               = %d (%s)\n" , near   , (near  <=0)?"lossless":"lossy" );
-        printf("  effort             = %d (%s)\n" , effort , (effort<=1)?"fast"    :"slow"  );
+        printf("  effort             = %d (%s)\n" , effort , (effort<=1)?"fast"    :"deepest");
+        printf("  near               = %d (%s)\n" , near   , (near  <=0)?"lossless":"lossy"  );
         printf("  output image shape = %d x %d\n" , width , height );
         
         if ( writePgmImageFile(p_dst_fname, img, height, width) ) {
