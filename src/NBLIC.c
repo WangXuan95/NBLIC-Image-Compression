@@ -700,7 +700,7 @@ int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width,
     
     BIN_CNT_t bc_tree [N_QD][256];
     
-    static AutoMapper_t maps [256][2];
+    AutoMapper_t maps [256][2];
     
     CODEC_t codec;
     
