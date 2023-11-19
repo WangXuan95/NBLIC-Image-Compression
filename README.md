@@ -2,7 +2,7 @@
 
 # NBLIC: lossless image compression
 
-NBLIC (Niu-Bi Lossless Image Compression) is a lossless & near-lossless image codec.
+NBLIC (Niu-Bi Lossless Image Compression) is a lossless & near-lossless gray image codec.
 
 ### Features
 
@@ -28,7 +28,7 @@ The code files are in pure-C, located in the [src](./src) folder:
 | ------------ | ------------------------------------------------------------ |
 | NBLIC.c      | Implement NBLIC encoder/decoder                              |
 | NBLIC.h      | Expose the functions of NBLIC encoder/decoder to users.      |
-| FileIO.c     | Implement PGM image file reading/writing functions and binary file reading/writing functions. |
+| FileIO.c     | Implement BMP and PGM image file reading/writing functions and binary file reading/writing functions. |
 | FileIO.h     | Expose the functions in FileIO.c to users.                   |
 | NBLIC_main.c | Include `main()` function. It calls `NBLIC.h` and `FileIO.h` to achieve image file encoding/decoding. |
 
@@ -60,37 +60,48 @@ We'll get the executable file `nblic_codec.exe` . Here I've compiled it for you,
 
 # Usage
 
-This program can compress a PGM image file (.pgm) to a NBLIC file (.nblic), or decompress a NBLIC file to a PGM image file
+This program can compress gray BMP/PNM/PGM image file to NBLIC file (.nblic), or decompress NBLIC file to gray BMP/PNM/PGM image file.
 
-Note that PGM is a simple uncompressed image format (see PGM Image File Specification [2]). PGM file contains:
-
-- A simple header that contains the width, height, and depth of this image.
-- The raw pixel values of this image.
+Note: BMP, PNM, and PGM are all image files without compression (i.e., they saves raw pixels).
 
 ### Compress
 
-In Linux, Use following command to compress `1.pgm` to `1.nblic`
+In Linux, Use following command to compress a BMP/PNM/PGM file to a NBLIC file.
 
 ```bash
-./nblic_codec 1.pgm 1.nblic [effort] [near]
+./nblic_codec  <input-image-file>  <output-file(.nblic)>  [<effort>]  [<near>]
 ```
 
-Where  `[effort]` is a optional parameter of range 1\~2 :
+Where:
 
-- `effort=1` : fast compression mode.
-- `effort=2` : deepest compression mode, higher compression ratio.
+- `input-image-file` can ends with `.pgm` , `.pnm` , or `.bmp`
+- `output-file` can only ends with `.nblic`
+- `effort` can be 1 (fast) or 2 (deepest)
+- `near` can be 0 (lossless) or 1,2,3,... (lossy)
 
-And `[near]` is a optional parameter :
+For example:
 
-- `near=0` : lossless (default)
-- `near=1,2,3,...` : lossy (near-lossless). The larger the near value, the higher distortion and the lower compressed size.
+```bash
+./nblic_codec img_kodak/01.bmp out.nblic 2 0
+```
 
 ### Decompress
 
-In Linux, Use following command to decompress `1.nblic` to `1.pgm` 
+In Linux, Use following command to decompress a NBLIC file to a BMP/PNM/PGM file.
 
 ```bash
-./nblic_codec 1.nblic 1.pgm
+nblic_codec  <input-file(.nblic)>  <output-image-file>
+```
+
+Where:
+
+- `input-file` can only ends with `.nblic`
+- `output-image-file` can only ends with `.pgm` , `.pnm` , or `.bmp`
+
+For example:
+
+```bash
+./nblic_codec out.nblic out.bmp
 ```
 
 Note: In Windows, just use `.\nblic_codec.exe` instead of `./nblic_codec` .
@@ -176,8 +187,8 @@ I use the following two image datasets for comparison.
 |                                 |                  small image benchmark                   |                    large image benchmark                     |
 | :-----------------------------: | :------------------------------------------------------: | :----------------------------------------------------------: |
 |             source              | [Kodak Image Suite](https://r0k.us/graphics/kodak/) [11] | Gray 8 bit in [this website](http://imagecompression.info/test_images/) [12] |
-|           preprocess            |                convert RGB to grey 8-bit                 |                           needn't                            |
-| pixel format before compression |                        grey 8-bit                        |                          grey 8-bit                          |
+|           preprocess            |                convert RGB to gray 8-bit                 |                           needn't                            |
+| pixel format before compression |                        gray 8-bit                        |                          gray 8-bit                          |
 | file format before compression  |                           .pgm                           |                             .pgm                             |
 | data volume before compression  |                      9437544 bytes                       |                       162870743 bytes                        |
 |           image count           |                            24                            |                              15                              |
@@ -227,7 +238,7 @@ The following table shows the **compressed BPP, compression time**, and **decomp
 |        CALIC         |      3.26      |       38.8        |        36.9         |
 |       JPEG-XL        |   3.16 (2nd)   |       289.6       |        90.7         |
 | **NBLIC** (effort=1) | **3.24** (3rd) |       31.7        |        29.3         |
-| **NBLIC** (effort=2) | **3.03** (1st) |       511.4       |        468.1        |
+| **NBLIC** (effort=2) | **3.03** (1st) |       251.3       |        232.9        |
 
 　
 

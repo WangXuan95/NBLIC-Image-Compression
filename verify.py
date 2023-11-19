@@ -14,9 +14,9 @@ from PIL import Image      # run "python -m pip install --upgrade Pillow" to ins
 
 
 ############################################### user config #################
-TMP_PNM_FILE1  = 'tmp1.pnm'                                                 #
+TMP_BMP_FILE1  = 'tmp1.bmp'                                                 #
 TMP_CMPRS_FILE = 'tmp.nblic'                                                #
-TMP_PNM_FILE2  = 'tmp2.pnm'                                                 #
+TMP_BMP_FILE2  = 'tmp2.bmp'                                                 #
                                                                             #
 CODEC_EXE_FILE = '.\\nblic_codec.exe'          # only for windows           #
 ############################################### end of user config ##########
@@ -41,9 +41,9 @@ def loadImageAsGrayOrRGB (input_image_file_name) :
 
 
 
-def convertImageToPNM (input_image_file_name, output_pnm_file_name) :
+def convertImageToBMP (input_image_file_name, output_bmp_file_name) :
     img = loadImageAsGrayOrRGB(input_image_file_name)
-    img.save(output_pnm_file_name)
+    img.save(output_bmp_file_name)
     return img.width * img.height
 
 
@@ -97,7 +97,7 @@ if __name__ == '__main__' :
         fname_full = in_dir + os.path.sep + fname
         
         try :
-            n_pixel = convertImageToPNM(fname_full, TMP_PNM_FILE1)
+            n_pixel = convertImageToBMP(fname_full, TMP_BMP_FILE1)
         except :
             print('skip %s' % fname)
             continue
@@ -108,16 +108,16 @@ if __name__ == '__main__' :
         print('BPP of %s:' % fname , end='' , flush=True )
         
         for (i, near) in enumerate(near_list) :
-            if 0 != callCodec(TMP_PNM_FILE1, TMP_CMPRS_FILE, near) :
+            if 0 != callCodec(TMP_BMP_FILE1, TMP_CMPRS_FILE, near) :
                 print('\n*** %s encode error' % fname)
                 exit(-1)
             
             if check :
-                if 0 != callCodec(TMP_CMPRS_FILE, TMP_PNM_FILE2) :
+                if 0 != callCodec(TMP_CMPRS_FILE, TMP_BMP_FILE2) :
                     print('\n*** %s decode error' % fname)
                     exit(-1)
                 
-                check2Images(TMP_PNM_FILE1, TMP_PNM_FILE2, near)
+                check2Images(TMP_BMP_FILE1, TMP_BMP_FILE2, near)
             
             size = os.path.getsize(TMP_CMPRS_FILE)
             
@@ -129,10 +129,10 @@ if __name__ == '__main__' :
         
         print()
         
-        os.remove(TMP_PNM_FILE1)
+        os.remove(TMP_BMP_FILE1)
         os.remove(TMP_CMPRS_FILE)
         if check :
-            os.remove(TMP_PNM_FILE2)
+            os.remove(TMP_BMP_FILE2)
     
     
     print('BPP of all %d files:' % file_count , end='' , flush=True )

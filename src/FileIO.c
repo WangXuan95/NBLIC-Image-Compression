@@ -5,25 +5,44 @@
 
 
 
+static void writeLittleEndian (int value, int len, FILE *fp) {
+    for (; len>0; len--) {
+        fputc((value&0xFF), fp);
+        value >>= 8;
+    }
+}
+
+
+
+static int loadLittleEndian (int len, FILE *fp) {
+    int i, value=0;
+    for (i=0; i<len; i++)
+        value |= (fgetc(fp) << (8*i));
+    return value;
+}
+
+
+
 // return:
 //     -1             : failed
 //     positive value : file length
 int loadBytesFromFile (const char *p_filename, unsigned char *p_buf, int len_limit) {
-    unsigned char *p_base  = p_buf;
-    unsigned char *p_limit = p_buf + len_limit;
     FILE *fp;
-    int   ch;
+    int   len;
     
     if ( (fp = fopen(p_filename, "rb")) == NULL )
         return -1;
     
-    while ((ch = fgetc(fp)) != EOF) {
-        if (p_buf >= p_limit)
-            return -1;
-        *(p_buf++) = (unsigned char)ch;
+    len = fread(p_buf, sizeof(unsigned char), len_limit, fp);
+    
+    if (fgetc(fp) != EOF) {             // there are still some data in the file
+        fclose(fp);
+        return -1;
     }
-
-    return p_buf - p_base;
+    
+    fclose(fp);
+    
+    return (len > len_limit) ? -1 : len;
 }
 
 
@@ -32,21 +51,17 @@ int loadBytesFromFile (const char *p_filename, unsigned char *p_buf, int len_lim
 //     -1 : failed
 //      0 : success
 int writeBytesToFile (const char *p_filename, const unsigned char *p_buf, int len) {
-    const unsigned char *p_limit = p_buf + len;
     FILE *fp;
+    int   len_actual;
     
     if ( (fp = fopen(p_filename, "wb")) == NULL )
         return -1;
-
-    for (; p_buf<p_limit; p_buf++) {
-        if (fputc(*p_buf, fp) == EOF) {
-            fclose(fp);
-            return -1;
-        }
-    }
-
+    
+    len_actual = fwrite(p_buf, sizeof(unsigned char), len, fp);
+    
     fclose(fp);
-    return 0;
+    
+    return (len != len_actual) ? -1 : 0;
 }
 
 
@@ -54,9 +69,9 @@ int writeBytesToFile (const char *p_filename, const unsigned char *p_buf, int le
 // return:
 //     -1 : failed
 //      0 : success
-int loadPgmImageFile (const char *p_filename, unsigned char *p_img, int *p_height, int *p_width) {
-    int   i, maxval=0;
+int loadPGMImageFile (const char *p_filename, unsigned char *p_img, int *p_height, int *p_width) {
     FILE *fp;
+    int   len, len_actual, maxval=0;
 
     (*p_height) = (*p_width) = -1;
     
@@ -100,17 +115,97 @@ int loadPgmImageFile (const char *p_filename, unsigned char *p_img, int *p_heigh
     
     fgetc(fp);                               // skip a white char
     
-    for (i=((*p_width)*(*p_height)); i>0; i--) {
-        int ch = fgetc(fp);
-        
-        if (ch == EOF) {                     // pixels not enough
+    len = ((*p_width)*(*p_height));
+    
+    len_actual = fread(p_img, sizeof(unsigned char), len, fp);
+    
+    fclose(fp);
+    
+    return (len != len_actual) ? -1 : 0;
+}
+
+
+
+// return:
+//     -1 : failed
+//      0 : success
+int writePGMImageFile (const char *p_filename, const unsigned char *p_img, int height, int width) {
+    FILE *fp;
+    int   len = width*height;
+    int   len_actual;
+    
+    if (width < 1 || height < 1)
+        return -1;
+    
+    if ( (fp = fopen(p_filename, "wb")) == NULL )
+        return -1;
+    
+    fprintf(fp, "P5\n%d %d\n255\n", width, height);
+    
+    len_actual = fwrite(p_img, sizeof(unsigned char), len, fp);
+    
+    fclose(fp);
+    
+    return (len != len_actual) ? -1 : 0;
+}
+
+
+
+// return:
+//     -1 : failed
+//      0 : success
+int loadBMPGrayImageFile (const char *p_filename, unsigned char *p_img, int *p_height, int *p_width) {
+    int   bm, offset, color_plane, bpp, cmprs_method;
+    int   i;
+    FILE *fp;
+    
+    if ( (fp = fopen(p_filename, "rb")) == NULL )
+        return -1;
+    
+    // load 14B BMP file header -----------------------------------------------------------------------
+    bm          = loadLittleEndian(2, fp);      // 'BM'
+                  loadLittleEndian(8, fp);      // whole file size + reserved
+    offset      = loadLittleEndian(4, fp);      // start position of pixel data
+    
+    // load first 20B of DIB header -------------------------------------------------------------------
+                  loadLittleEndian(4, fp);      // DIB header size
+    (*p_width)  = loadLittleEndian(4, fp);      // width
+    (*p_height) = loadLittleEndian(4, fp);      // height
+    color_plane = loadLittleEndian(2, fp);      // color plane
+    bpp         = loadLittleEndian(2, fp);      // bits per pixel
+    cmprs_method= loadLittleEndian(4, fp);      // compress method
+    
+    if (bm != 0x4D42 || color_plane != 1 || bpp != 8 || cmprs_method != 0 || (*p_width) < 1 || (*p_height) < 1) {
+        fclose(fp);
+        return -1;
+    }
+    
+    offset -= 34;             // we've read 34B
+    
+    if (offset < 0) {
+        fclose(fp);
+        return -1;
+    }
+    
+    // skip to the start of pixel data ----------------------------------------------------------------
+    for (; offset>0; offset--) {
+        if (fgetc(fp) == EOF) {
             fclose(fp);
             return -1;
         }
-        
-        *(p_img++) = (unsigned char)ch;
     }
-
+    
+    //printf("%08x  %08x  %08x  %08x  %08x  %08x  %08x\n", bm, offset, (*p_width), (*p_height), color_plane, bpp, cmprs_method);
+    
+    // load pixel data, note that the scan order of BMP is from down to up, from left to right --------
+    for (i=(*p_height)-1; i>=0; i--) {
+        unsigned char *p_row = p_img + (i * (*p_width));
+        if ((*p_width) != fread(p_row, sizeof(unsigned char), (*p_width), fp)) {
+            fclose(fp);
+            return -1;
+        }
+    }
+    
     fclose(fp);
     return 0;
 }
@@ -120,7 +215,8 @@ int loadPgmImageFile (const char *p_filename, unsigned char *p_img, int *p_heigh
 // return:
 //     -1 : failed
 //      0 : success
-int writePgmImageFile (const char *p_filename, const unsigned char *p_img, int height, int width) {
+int writeBMPGrayImageFile (const char *p_filename, const unsigned char *p_img, int height, int width) {
+    const int file_size = 14 + 40 + 1024 + height * width;  // 14B BMP file header + 40B DIB header + 1024B palette + pixels
     int   i;
     FILE *fp;
     
@@ -129,17 +225,45 @@ int writePgmImageFile (const char *p_filename, const unsigned char *p_img, int h
     
     if ( (fp = fopen(p_filename, "wb")) == NULL )
         return -1;
-
-    fprintf(fp, "P5\n%d %d\n255\n", width, height);
     
-    for (i=width*height; i>0; i--) {
-        unsigned char pixel = *(p_img++);
-        if (fputc(pixel, fp) == EOF) {
-            fclose(fp);                       // write file failed
-            return -1;
-        }
+    // write 14B BMP file header -----------------------------------------------------------------------
+    writeLittleEndian(    0x4D42, 2, fp);   // 'BM'
+    writeLittleEndian( file_size, 4, fp);   // whole file size
+    writeLittleEndian(0x00000000, 4, fp);   // reserved
+    writeLittleEndian(0x00000436, 4, fp);   // start position of pixel data
+    
+    // write 40B DIB header ----------------------------------------------------------------------------
+    writeLittleEndian(0x00000028, 4, fp);   // DIB header size
+    writeLittleEndian(     width, 4, fp);   // width
+    writeLittleEndian(    height, 4, fp);   // height
+    writeLittleEndian(    0x0001, 2, fp);   // one color plane
+    writeLittleEndian(    0x0008, 2, fp);   // 8 bits per pixel
+    writeLittleEndian(0x00000000, 4, fp);   // BI_RGB
+    writeLittleEndian(0x00000000, 4, fp);   // pixel data size (height * width), a dummy 0 can be given for BI_RGB bitmaps
+    writeLittleEndian(0x00000EC4, 4, fp);   // horizontal resolution of the image. (pixel per metre, signed integer)
+    writeLittleEndian(0x00000EC4, 4, fp);   // vertical resolution of the image. (pixel per metre, signed integer)
+    writeLittleEndian(0x00000100, 4, fp);   // number of colors in the color palette, or 0 to default to 2^n
+    writeLittleEndian(0x00000000, 4, fp);   // number of important colors used, or 0 when every color is important; generally ignored
+    
+    // write palette -----------------------------------------------------------------------------------
+    for (i=0; i<256; i++) {
+        fputc(i, fp);
+        fputc(i, fp);
+        fputc(i, fp);
+        fputc(0xFF, fp);
     }
-
+    
+    // write pixel data, note that the scan order of BMP is from down to up, from left to right --------
+    for (i=height-1; i>=0; i--) {
+        const unsigned char *p_row = p_img + (i * width);
+        fwrite(p_row, sizeof(unsigned char), width, fp);
+    }
+    
+    if (ftell(fp) < file_size) {
+        fclose(fp);
+        return -1;
+    }
+    
     fclose(fp);
     return 0;
 }
