@@ -29,6 +29,9 @@
 #define    NBLIC_MAX_HEIGHT    10240
 #define    NBLIC_MAX_WIDTH     10240
 
+#define    MIN_EFFORT             1
+#define    MAX_EFFORT             2
+
 
 // function  : NBLIC image compress/decompress
 //

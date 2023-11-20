@@ -69,9 +69,6 @@ typedef    long long int          I64;
 #define    EDP_M                  (EDP_T1 + (1 + EDP_T1 + EDP_T2) * EDP_T3)
 #define    EDP_SFT                12
 
-#define    MIN_EFFORT             1
-#define    MAX_EFFORT             2
-
 
 
 static void matrixMultiply (I64 *p_dst, I64 *p_src1, I64 *p_src2, int m, int n1, int n2) {

@@ -157,8 +157,8 @@ Note that since I use Python's pillow library to encode/decode some formats, som
 |         WEBP         |    Python     |        `img.save('a.webp', lossless=True, method=6)`         | lossless, deepest compression |
 |        CALIC         |  Windows CMD  |    `calic8e.exe a.raw <width> <height> <depth> 0 a.calic`    | lossless                      |
 |       JPEG-XL        | Linux command |              `./flif -e -N -E1100 a.pgm a.flif`              | lossless, deepest compression |
-| **NBLIC** (effort=1) |  Windows CMD  |             `nblic_codec.exe a.pgm a.nblic 1 0`              | lossless, fast compression    |
-| **NBLIC** (effort=2) |  Windows CMD  |             `nblic_codec.exe a.pgm a.nblic 2 0`              | lossless, deepest compression |
+| **NBLIC** (effort=1) | Linux command |              `./nblic_codec a.pgm a.nblic 1 0`               | lossless, fast compression    |
+| **NBLIC** (effort=2) | Linux command |              `./nblic_codec a.pgm a.nblic 2 0`               | lossless, deepest compression |
 
 　
 
@@ -176,7 +176,7 @@ Decoding commands are simple, as shown in following table.
 |   WEBP    |    Python     | `numpy.asarray(Image.open('a.webp'))` |
 |   CALIC   |  Windows CMD  |      `calic8d.exe a.calic a.raw`      |
 |  JPEG-XL  | Linux command |       `./flif -d a.flif a.pgm`        |
-| **NBLIC** |  Windows CMD  |    `nblic_codec.exe a.nblic a.pgm`    |
+| **NBLIC** | Linux command |    `.、nblic_codec a.nblic a.pgm`     |
 
 　
 
@@ -219,7 +219,7 @@ The following table shows the **compressed BPP, compression time**, and **decomp
 |        CALIC         |      4.18      |        8.1        |         7.6         |
 |       JPEG-XL        |      4.30      |       10.0        |         3.1         |
 | **NBLIC** (effort=1) | **4.15** (2nd) |       3.15        |        3.04         |
-| **NBLIC** (effort=2) | **4.11** (1st) |       27.8        |        27.0         |
+| **NBLIC** (effort=2) | **4.11** (1st) |        9.2        |         7.6         |
 
 
 
@@ -238,7 +238,7 @@ The following table shows the **compressed BPP, compression time**, and **decomp
 |        CALIC         |      3.26      |       38.8        |        36.9         |
 |       JPEG-XL        |   3.16 (2nd)   |       289.6       |        90.7         |
 | **NBLIC** (effort=1) | **3.24** (3rd) |       31.7        |        29.3         |
-| **NBLIC** (effort=2) | **3.03** (1st) |       251.3       |        232.9        |
+| **NBLIC** (effort=2) | **3.03** (1st) |       139.7       |        91.6         |
 
 　
 
