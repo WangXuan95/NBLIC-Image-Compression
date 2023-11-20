@@ -218,7 +218,7 @@ The following table shows the **compressed BPP, compression time**, and **decomp
 |         WEBP         |      4.33      |       118.6       |         0.3         |
 |        CALIC         |      4.18      |        8.1        |         7.6         |
 |       JPEG-XL        |      4.30      |       10.0        |         3.1         |
-| **NBLIC** (effort=1) | **4.15** (2nd) |       3.15        |        3.04         |
+| **NBLIC** (effort=1) | **4.15** (2nd) |        3.2        |         3.1         |
 | **NBLIC** (effort=2) | **4.11** (1st) |        9.2        |         7.6         |
 
 
@@ -237,7 +237,7 @@ The following table shows the **compressed BPP, compression time**, and **decomp
 |         WEBP         |      3.39      |      1910.1       |         3.0         |
 |        CALIC         |      3.26      |       38.8        |        36.9         |
 |       JPEG-XL        |   3.16 (2nd)   |       289.6       |        90.7         |
-| **NBLIC** (effort=1) | **3.24** (3rd) |       31.7        |        29.3         |
+| **NBLIC** (effort=1) | **3.24** (3rd) |       26.5        |        25.8         |
 | **NBLIC** (effort=2) | **3.03** (1st) |       139.7       |        91.6         |
 
 　
