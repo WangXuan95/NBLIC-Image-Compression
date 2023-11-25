@@ -151,12 +151,15 @@ int writePGMImageFile (const char *p_filename, const unsigned char *p_img, int h
 
 
 
+#define   BMP_ROW_ALIGN   4
+
+
+
 // return:
 //     -1 : failed
 //      0 : success
 int loadBMPGrayImageFile (const char *p_filename, unsigned char *p_img, int *p_height, int *p_width) {
-    int   bm, offset, color_plane, bpp, cmprs_method;
-    int   i;
+    int   bm, offset, color_plane, bpp, cmprs_method, align_skip, i;
     FILE *fp;
     
     if ( (fp = fopen(p_filename, "rb")) == NULL )
@@ -197,13 +200,16 @@ int loadBMPGrayImageFile (const char *p_filename, unsigned char *p_img, int *p_h
     
     //printf("%08x  %08x  %08x  %08x  %08x  %08x  %08x\n", bm, offset, (*p_width), (*p_height), color_plane, bpp, cmprs_method);
     
+    align_skip = (((*p_width) + BMP_ROW_ALIGN - 1) / BMP_ROW_ALIGN) * BMP_ROW_ALIGN - (*p_width);
+    
     // load pixel data, note that the scan order of BMP is from down to up, from left to right --------
     for (i=(*p_height)-1; i>=0; i--) {
         unsigned char *p_row = p_img + (i * (*p_width));
-        if ((*p_width) != fread(p_row, sizeof(unsigned char), (*p_width), fp)) {
+        if ((*p_width) != (int)fread(p_row, sizeof(unsigned char), (*p_width), fp)) {
             fclose(fp);
             return -1;
         }
+        loadLittleEndian(align_skip, fp);
     }
     
     fclose(fp);
@@ -216,7 +222,9 @@ int loadBMPGrayImageFile (const char *p_filename, unsigned char *p_img, int *p_h
 //     -1 : failed
 //      0 : success
 int writeBMPGrayImageFile (const char *p_filename, const unsigned char *p_img, int height, int width) {
-    const int file_size = 14 + 40 + 1024 + height * width;  // 14B BMP file header + 40B DIB header + 1024B palette + pixels
+    const int align_width = ((width + BMP_ROW_ALIGN - 1) / BMP_ROW_ALIGN) * BMP_ROW_ALIGN;
+    const int align_skip  = align_width - width;
+    const int file_size = 14 + 40 + 1024 + height * align_width;  // 14B BMP file header + 40B DIB header + 1024B palette + pixels
     int   i;
     FILE *fp;
     
@@ -257,6 +265,7 @@ int writeBMPGrayImageFile (const char *p_filename, const unsigned char *p_img, i
     for (i=height-1; i>=0; i--) {
         const unsigned char *p_row = p_img + (i * width);
         fwrite(p_row, sizeof(unsigned char), width, fp);
+        writeLittleEndian(0x00000000, align_skip, fp);
     }
     
     if (ftell(fp) < file_size) {

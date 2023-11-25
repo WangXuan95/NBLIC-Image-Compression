@@ -4,13 +4,6 @@
 #include "NBLIC.h"
 
 
-#define COPY_ARRAY(p_dst,p_src,len) {                         \
-    int i;                                                    \
-    for (i=0; i<(len); i++)                                   \
-        (p_dst)[i] = (p_src)[i];                              \
-}                                                             \
-
-
 static char toLower (char c) {
     if (c >= 'A' && c <= 'Z')
         return c + 32;
@@ -47,7 +40,7 @@ const char *USAGE =
   "|   nblic_codec <input-image-file> <output-file(.nblic)> [<effort>] [<near>] |\n"
   "|     where: <input-image-file> can be .pgm, .pnm, or .bmp                   |\n"
   "|            <output-file>      can only be .nblic                           |\n"
-  "|            <effort>           can be 1 (fast) or 2 (deepest)               |\n"
+  "|            <effort>           can be 1, 2, 3, or 4                         |\n"
   "|            <near>             can be 0 (lossless) or 1,2,3,... (lossy)     |\n"
   "|----------------------------------------------------------------------------|\n"
   "| Decompress:                                                                |\n"
@@ -67,14 +60,13 @@ const char *USAGE =
 //     -1 : exit with error
 //      0 : exit normally
 int main (int argc, char **argv) {
-    static unsigned char img     [IMG_MAX_LEN];
-    static unsigned char img_tmp [IMG_MAX_LEN];
-    static unsigned char buf     [BUF_MAX_LEN];
+    static unsigned char img [IMG_MAX_LEN];
+    static unsigned char buf [BUF_MAX_LEN];
 
     int height      = -1;
     int width       = -1;
-    int effort      =  MIN_EFFORT;
     int near        =  0;
+    int effort      =  MIN_EFFORT;
     int len         = -1;
     int in_is_nblic =  0;
     int in_is_bmp   =  0;
@@ -119,33 +111,15 @@ int main (int argc, char **argv) {
         printf("  input image size   = %d B\n"    , width * height );
         printf("  compressing ...\n");
         
-        if (effort >= MAX_EFFORT) {
-            int len1;
-            
-            COPY_ARRAY(img_tmp, img, height*width);
-            effort = MIN_EFFORT;
-            len1 = NBLICcodec(0, buf, img_tmp, &height, &width, &near, &effort);
-            
-            COPY_ARRAY(img_tmp, img, height*width);
-            effort = MAX_EFFORT;
-            len  = NBLICcodec(0, buf, img_tmp, &height, &width, &near, &effort);
-            
-            if (len1 <= len) {
-                effort = MIN_EFFORT;
-                len  = NBLICcodec(0, buf, img, &height, &width, &near, &effort);
-                printf("  Info : use effort=%d, since it's better than effort=%d\n", MIN_EFFORT, MAX_EFFORT);
-            }
-        } else {
-            len = NBLICcodec(0, buf, img, &height, &width, &near, &effort);
-        }
+        len = NBLICcompress(buf, img, height, width, &near, &effort);
         
         if (len < 0) {
             printf("  ***Error : compress failed\n");
             return -1;
         }
         
-        printf("  effort             = %d (%s)\n" , effort , (effort<=MIN_EFFORT)?"fast":"deepest");
-        printf("  near               = %d (%s)\n" , near   , (near  <=0)?"lossless":"lossy"  );
+        printf("  effort             = %d\n"      , effort);
+        printf("  near               = %d (%s)\n" , near   , (near<=0)?"lossless":"lossy"  );
         printf("  output size        = %d B\n" , len    );
         printf("  compression rate   = %.5f\n" , (1.0*width*height)/len );
         printf("  compression bpp    = %.5f\n" , (8.0*len)/(width*height) );
@@ -167,12 +141,12 @@ int main (int argc, char **argv) {
         printf("  input size         = %d B\n" , len );
         printf("  decompressing ...\n");
         
-        if ( NBLICcodec(1, buf, img, &height, &width, &near, &effort) < 0 ) {
+        if ( NBLICdecompress(buf, img, &height, &width, &near, &effort) < 0 ) {
             printf("  ***Error : decompress failed\n");
             return -1;
         }
         
-        printf("  effort             = %d (%s)\n" , effort , (effort<=MIN_EFFORT)?"fast":"deepest");
+        printf("  effort             = %d\n"      , effort);
         printf("  near               = %d (%s)\n" , near   , (near  <=0)?"lossless":"lossy"  );
         printf("  output image shape = %d x %d\n" , width , height );
         printf("  output image format= %s\n"      , out_is_bmp?"BMP":"PGM");

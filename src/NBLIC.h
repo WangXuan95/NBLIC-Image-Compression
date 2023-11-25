@@ -29,42 +29,50 @@
 #define    NBLIC_MAX_HEIGHT    10240
 #define    NBLIC_MAX_WIDTH     10240
 
-#define    MIN_EFFORT             1
-#define    MAX_EFFORT             2
+#define    MIN_EFFORT          1
+#define    MAX_EFFORT          4
 
 
-// function  : NBLIC image compress/decompress
+
+// function  : NBLIC image compress
 //
 // parameter :
-//    - decode   : 0=encode  1-decode
-//    - p_buf    : Pointer to the compressed stream buffer.
-//                   For encode, the buffer will be written.
-//                   For decode, the buffer will be read.
-//    - p_img    : Pointer to the image pixel buffer.
-//                   Each pixel is a 8-bit luminance value, which occupy an unsigned char.
-//                   For encode, the buffer will be read. Pixels should be stored in this buffer in raster scan order (from left to right, from up to down).
-//                   For decode, the buffer will be written. Pixels will be stored in this buffer in raster scan order (from left to right, from up to down).
-//    - p_height : Pointer to the image height
-//                   For encode, the user should specify the correct image height. The function will just read it, but not modify it.
-//                   For decode, the user do not need to specify the height, instead, we will get the image height in this pointer, which is parsed from the compressed file header).
-//    - p_width  : Pointer to the image width
-//                   For encode and decode, its operation method is just as same as p_height.
-//    - p_near   : Pointer to the near value of near-lossless compression
-//                   0  : lossless
-//                   >0 : near-lossless
-//                   For encode and decode, its operation method is just as same as p_height.
-//    - p_effort : Pointer to the effort value, the larger, the higher compression ratio and the slower encode/decode speed
-//                   1  : fast
-//                   2  : slow
-//                   For encode and decode, its operation method is just as same as p_height.
+//    - p_buf    : Pointer to the compressed stream buffer. The buffer will be written.
+//    - p_img    : Pointer to the image pixel buffer. Each pixel is a 8-bit luminance value, which occupy an unsigned char. The buffer will be read. Pixels should be stored in this buffer in raster scan order (from left to right, from up to down).
+//    - height   : image height
+//    - width    : image width
+//    - p_near   : Pointer to the near value of near-lossless compression. The user should specify a near value in it.
+//                   0         : lossless
+//                   1,2,3,... : lossy
+//    - p_effort : Pointer to the effort value. The user should specify a effort value in it.
+//                   1 : fastest and lowest compression ratio
+//                   2 : 
+//                   3 : 
+//                   4 : slowest and highest compression ratio
 //
 // return :
-//    - For encode : positive value : compressed stream length
-//                               -1 : failed
-//    - For decode :              0 : success
-//                               -1 : failed
+//    - positive value : compressed stream length
+//                  -1 : failed
 //
-extern int NBLICcodec (int decode, unsigned char *p_buf, unsigned char *p_img, int *p_height, int *p_width, int *p_near, int *p_effort);
+extern int NBLICcompress   (unsigned char *p_buf, unsigned char *p_img, int height, int width, int *p_near, int *p_effort);
+
+
+
+// function  : NBLIC image decompress
+//
+// parameter :
+//    - p_buf    : Pointer to the compressed stream buffer, which will be read.
+//    - p_img    : Pointer to the image pixel buffer. Each pixel is a 8-bit luminance value, which occupy an unsigned char. The buffer will be written. Pixels will be stored in this buffer in raster scan order (from left to right, from up to down).
+//    - p_height : Pointer to the image height. The user do not need to specify it, instead, he will get the image height in this pointer, which is parsed from the compressed file header.
+//    - p_width  : Pointer to the image width. The user do not need to specify it, instead, he will get the image width in this pointer, which is parsed from the compressed file header.
+//    - p_near   : Pointer to the near value of near-lossless compression. The user do not need to specify it, instead, he will get the near in this pointer, which is parsed from the compressed file header.
+//    - p_effort : Pointer to the effort value. The user do not need to specify it, instead, he will get the effort in this pointer, which is parsed from the compressed file header.
+//
+// return :
+//    -   0 : success
+//    -  -1 : failed
+//
+extern int NBLICdecompress (unsigned char *p_buf, unsigned char *p_img, int *p_height, int *p_width, int *p_near, int *p_effort);
 
 
 #endif // __NBLIC_H__

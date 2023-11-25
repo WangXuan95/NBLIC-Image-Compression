@@ -21,10 +21,11 @@
 //   so there is no guarantee that the generated compressed files will be compatible with subsequent versions
 //
 
+#include <stdlib.h>
 
 #include "NBLIC.h"
 
-const char *title = "NBLIC0.1";
+const char *title = "NBLIC0.2";
 
 typedef    unsigned char          UI8;
 typedef    long long int          I64;
@@ -35,18 +36,20 @@ typedef    long long int          I64;
 #define    ABS(x)                 ( ((x) < 0) ? (-(x)) : (x) )                             // get absolute value
 #define    CLIP(x,a,b)            ( ((x)<(a)) ? (a) : (((x)>(b)) ? (b) : (x)) )            // clip x between a~b
 
-#define    GET2D(ptr,width,i,j)   (*( (ptr) + (width)*(i) + (j) ))
-#define    SPIX(ptr,width,i,j,v0) (((0<=(i)) && (0<=(j)) && ((j)<(width))) ? GET2D((ptr),(width),(i),(j)) : (v0))
+#define    G2D(ptr,width,i,j)     (*( (ptr) + (width)*(i) + (j) ))
+#define    SPIX(ptr,width,i,j,v0) (((0<=(i)) && (0<=(j)) && ((j)<(width))) ? G2D((ptr),(width),(i),(j)) : (v0))
 
 #define    MAX_N_CHANNEL          1
 
 #define    MAX_VAL                255
 #define    MID_VAL                ((MAX_VAL+1)/2)
 
-#define    MAX_BIAS               (MAX_VAL - MID_VAL)
-#define    MIN_BIAS               (-MAX_BIAS)
+#define    MAX_PX_INC             (MAX_VAL - MID_VAL)
+#define    MIN_PX_INC             (-MAX_PX_INC)
 
-#define    MAX_NEAR               (MAX_VAL / 10)
+#define    MAX_NEAR               (MAX_VAL / 26)
+
+#define    MIN_K_STEP             3
 
 #define    N_QD                   16
 #define    N_CONTEXT              ((N_QD>>1) * 256)
@@ -61,61 +64,72 @@ typedef    long long int          I64;
 #define    MAX_COUNTER            256
 #define    PROB_ONE               (1 << 16)
 
-#define    EDP_I                  5
-#define    EDP_N                  6
-#define    EDP_T1                 5
-#define    EDP_T2                 (EDP_T1 - 1 + EDP_I)
-#define    EDP_T3                 6
-#define    EDP_M                  (EDP_T1 + (1 + EDP_T1 + EDP_T2) * EDP_T3)
-#define    EDP_SFT                12
+#define    FB1                    12
+#define    FB2                    2
+#define    FB3                    (FB1 - FB2)
+
+#define    FIT_BASE               MID_VAL
+#define    ALPHA                  5
+#define    BETA                   3
+
+#define    BIAS_INIT              (2    << FB2)
+#define    BIAS_MAX               (1024 << FB2)
+#define    BIAS_COEF              21
+
+#define    GET_M(n)               (1+(n)+(n)*(n))
+
+const static int N_LIST [MAX_EFFORT+1] = {-1, 0, 6, 10, 12};
+
+#define    MAX_N                  12
 
 
 
-static void matrixMultiply (I64 *p_dst, I64 *p_src1, I64 *p_src2, int m, int n1, int n2) {
-    int i, j, k;
-    for (i=0; i<n1; i++) {
-        for (j=0; j<n2; j++) {
-            I64 s = 0;
-            for (k=0; k<m; k++)
-                s += GET2D(p_src1, n1, k, i) * GET2D(p_src2, n2, k, j);
-            GET2D(p_dst, n2, i, j) = s;
-        }
-    }
-}
+#define SET_ARRAY_ZERO(array,len) { \
+    int i;                          \
+    for (i=0; i<(len); i++)         \
+        (array)[i] = 0;             \
+}                                   \
+
+
+#define COPY_ARRAY(p_dst,p_src,len) {                         \
+    int i;                                                    \
+    for (i=0; i<(len); i++)                                   \
+        (p_dst)[i] = (p_src)[i];                              \
+}                                                             \
+
 
 
 // return:
-//      1 : failed
-//      0 : success
-static int Solve_Ax_b (I64 *p_mat_A, I64 *p_vec_b, int n) {
-    int k, i, j;
+//      0 : failed
+//      1 : success
+static int AVPsolveAxb (int n, I64 *p_mat_A, I64 *p_vec_b) {
+    int i, j, k, kk;
     I64 Akk, Aik, Akj;
     
     for (k=0; k<(n-1); k++) {
         // find main row number kk -------------------------------------
-        int kk = k;
+        kk = k;
         for (i=k+1; i<n; i++)
-            if (ABS(GET2D(p_mat_A, n, i, k)) > ABS(GET2D(p_mat_A, n, kk, k)))
+            if (ABS(G2D(p_mat_A, n, i, k)) > ABS(G2D(p_mat_A, n, kk, k)))
                 kk = i;
         
-        // swap row kk and k -------------------------------------
+        // swap row kk and k -------------------------------------------
         if (kk != k) {
             SWAP(I64, p_vec_b[k], p_vec_b[kk]);
             for (j=k; j<n; j++)
-                SWAP(I64, GET2D(p_mat_A, n, k, j), GET2D(p_mat_A, n, kk, j));
+                SWAP(I64, G2D(p_mat_A, n, k, j), G2D(p_mat_A, n, kk, j));
         }
         
-        // gaussian elimination -------------------------------------
-        Akk = GET2D(p_mat_A, n, k, k);
-        if (Akk == 0)
-            return 1;
+        // gaussian elimination ----------------------------------------
+        Akk = G2D(p_mat_A, n, k, k);
+        if (Akk == 0) return 0;
         for (i=k+1; i<n; i++) {
-            Aik = GET2D(p_mat_A, n, i, k);
-            GET2D(p_mat_A, n, i, k) = 0;
+            Aik = G2D(p_mat_A, n, i, k);
+            G2D(p_mat_A, n, i, k) = 0;
             if (Aik != 0) {
                 for (j=k+1; j<n; j++) {
-                    Akj = GET2D(p_mat_A, n, k, j);
-                    GET2D(p_mat_A, n, i, j) -= Akj * Aik / Akk;
+                    Akj = G2D(p_mat_A, n, k, j);
+                    G2D(p_mat_A, n, i, j) -= Akj * Aik / Akk;
                 }
                 Akj = p_vec_b[k];
                 p_vec_b[i] -= Akj * Aik / Akk;
@@ -124,12 +138,11 @@ static int Solve_Ax_b (I64 *p_mat_A, I64 *p_vec_b, int n) {
     }
     
     for (k=(n-1); k>0; k--) {
-        Akk = GET2D(p_mat_A, n, k, k);
-        if (Akk == 0)
-            return 1;
+        Akk = G2D(p_mat_A, n, k, k);
+        if (Akk == 0) return 0;
         for (i=0; i<k; i++) {
-            Aik = GET2D(p_mat_A, n, i, k);
-            GET2D(p_mat_A, n, i, k) = 0;
+            Aik = G2D(p_mat_A, n, i, k);
+            G2D(p_mat_A, n, i, k) = 0;
             if (Aik != 0) {
                 Akj = p_vec_b[k];
                 p_vec_b[i] -= Akj * Aik / Akk;
@@ -137,19 +150,134 @@ static int Solve_Ax_b (I64 *p_mat_A, I64 *p_vec_b, int n) {
         }
     }
     
-    for (k=0; k<n; k++) {
-        Akk = GET2D(p_mat_A, n, k, k);
-        if (Akk == 0)
-            return 1;
-        p_vec_b[k] += (Akk>>1);
-        p_vec_b[k] /= Akk;
-    }
-    
-    return 0;
+    return 1;
 }
 
 
-static void sampleNeighbourPixels (UI8 *p_img, int width, int i, int j, int *p_a, int *p_b, int *p_c, int *p_d, int *p_e, int *p_f, int *p_g, int *p_h, int *p_q, int *p_r, int *p_s) {
+static void AVPgetVecN (I64 *vec_n, int n, int a, int b, int c, int d, int e, int f, int g, int h, int q, int r, int s, int t) {
+    if (n > 0) vec_n[0] = a;
+    if (n > 1) vec_n[1] = b;
+    if (n > 2) vec_n[2] = c;
+    if (n > 3) vec_n[3] = d;
+    if (n > 4) vec_n[4] = e;
+    if (n > 5) vec_n[5] = f;
+    if (n > 6) vec_n[6] = t;
+    if (n > 7) vec_n[7] = h;
+    if (n > 8) vec_n[8] = q;
+    if (n > 9) vec_n[9] = g;
+    if (n >10) vec_n[10]= r;
+    if (n >11) vec_n[11]= s;
+    
+    {
+        int k;
+        for (k=0; k<n; k++)
+            vec_n[k] -= FIT_BASE;
+    }
+}
+
+
+static void AVPprecalcuate (int m, I64 *p_F_row, I64 *p_B_row, int width) {
+    int j, k;
+    
+    for (j=width-1; j>=0; j--) {
+        I64 *p_B  = p_B_row + (m * j);
+        I64 *p_F  = p_F_row + (m * j);
+        I64 *p_F2 = p_F_row + (m *(j+1));
+        int ab = BETA;
+        
+        for (k=0; k<m; k++) {
+            if (j == width-1)
+                p_F[k] = 0;
+            else
+                p_F[k] = (p_F2[k] * (ab-1) + ab/2) / ab;
+            p_F[k] += p_B[k];
+            ab = ALPHA;
+        }
+    }
+}
+
+
+// return:
+//      0 : failed
+//      1 : success
+static int AVPpredict (int n, int m, I64 *p_E, I64 *p_F, I64 *vec_n, I64 bias, I64 *p_px) {
+    int k;
+    
+    I64  dataset [GET_M(MAX_N)];
+    I64 *vec_b = dataset + 1;
+    I64 *mat_A = dataset + 1 + n;
+    
+    for (k=1; k<m; k++)
+        dataset[k] = p_E[k] + p_F[k];
+    
+    for (k=0; k<n; k++) {
+        vec_b[k]            += bias << FB3;
+        G2D(mat_A, n, k, k) += bias * n;
+    }
+    
+    if ( AVPsolveAxb(n, mat_A, vec_b) ) {
+        I64 px = FIT_BASE << FB1;
+        
+        for (k=0; k<n; k++) {
+            I64 Akk = G2D(mat_A, n, k, k);
+            px += (((vec_b[k] * vec_n[k]) << FB2) + (Akk>>1)) / Akk;
+        }
+        
+        *p_px = CLIP(px, 0, (MAX_VAL<<FB1));
+        
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+
+static void AVPupdate (int n, int m, I64 *p_E, I64 *p_B, I64 *vec_n, int x, I64 s_curr, I64 s_sum) {
+    int j, k, ab;
+    
+    I64  s_sum_2;
+    I64  dataset [GET_M(MAX_N)];
+    I64 *vec_b = dataset + 1;
+    I64 *mat_A = dataset + 1 + n;
+    
+    dataset[0] = s_curr;
+    
+    x -= FIT_BASE;
+    
+    s_sum = CLIP((s_sum+(1<<FB1)), (1<<FB1), (16<<FB1));
+    s_sum_2 = s_sum >> 1;
+    
+    for (k=0; k<n; k++)
+        vec_b[k]                = (((       x * vec_n[k]) << (4+FB1+FB1)) + s_sum_2) / s_sum;   // b = x * n
+    
+    for (j=0; j<n; j++)
+        for (k=0; k<n; k++)
+            G2D(mat_A, n, j, k) = (((vec_n[j] * vec_n[k]) << (4+FB2+FB1)) + s_sum_2) / s_sum;   // A = n * n.T
+    
+    //for (k=0; k<n; k++)
+    //    vec_b[k]                = ((       x * vec_n[k]) << FB1);   // b = x * n
+    //for (j=0; j<n; j++)
+    //    for (k=0; k<n; k++)
+    //        G2D(mat_A, n, j, k) = ((vec_n[j] * vec_n[k]) << FB2);   // A = n * n.T
+    
+    ab = BETA;
+    
+    for (k=0; k<m; k++) {
+        p_B[k] *= (ab-1);
+        p_B[k] += (ab>>1);
+        p_B[k] /= ab;
+        p_B[k] += dataset[k];
+        p_E[k] *= (ab-1);
+        p_E[k] += (ab>>1);
+        p_E[k] /= ab;
+        p_E[k] += p_B[k];
+        ab = ALPHA;
+    }
+}
+
+
+
+static void sampleNeighbourPixels (UI8 *p_img, int width, int i, int j, int *p_a, int *p_b, int *p_c, int *p_d, int *p_e, int *p_f, int *p_g, int *p_h, int *p_q, int *p_r, int *p_s, int *p_t) {
     *p_a = (int)SPIX(p_img, width, i   , j-1 , MID_VAL);
     *p_b = (int)SPIX(p_img, width, i-1 , j   , MID_VAL);
     if      (i == 0)
@@ -165,72 +293,8 @@ static void sampleNeighbourPixels (UI8 *p_img, int width, int i, int j, int *p_a
     *p_q = (int)SPIX(p_img, width, i-1 , j-2 , *p_c);
     *p_r = (int)SPIX(p_img, width, i-2 , j+2 , *p_g);
     *p_s = (int)SPIX(p_img, width, i-2 , j-2 , *p_h);
+    *p_t = (int)SPIX(p_img, width, i-1 , j+2 , *p_d);
 }
-
-
-static void getVecBforEDP (I64 *p_vec, int a, int b, int c, int d, int e, int f, int g, int h, int q, int r, int s) {
-    int ii;
-    if (EDP_N > 0) p_vec[0] = a;
-    if (EDP_N > 1) p_vec[1] = b;
-    if (EDP_N > 2) p_vec[2] = c;
-    if (EDP_N > 3) p_vec[3] = d;
-    if (EDP_N > 4) p_vec[4] = e;
-    if (EDP_N > 5) p_vec[5] = f;
-    if (EDP_N > 6) p_vec[6] = g;
-    if (EDP_N > 7) p_vec[7] = q;
-    if (EDP_N > 8) p_vec[8] = h;
-    if (EDP_N > 9) p_vec[9] = r;
-    if (EDP_N >10) p_vec[10]= s;
-    for (ii=0; ii<EDP_N; ii++)
-        p_vec[ii] -= MID_VAL;
-}
-
-
-// return:
-//      1 : failed
-//      0 : success
-static int fitEDP (I64 p_vec_r [EDP_N], UI8 *p_img, int width, int i, int j) {
-    int  a, b, c, d, e, f, g, h, q, r, s;
-    int ii, jj, m=0;
-    
-    I64 mat_C [EDP_M * EDP_N];                                // (M*N) matrix
-    I64 vec_y [EDP_M        ];                                // (M*1) matrix, i.e. a column vector
-    I64 mat_R [EDP_N * EDP_N];                                // (N*N) matrix
-    
-    for (ii=i-EDP_T3; ii<=i; ii++) {
-        for (jj=j-EDP_T1; jj<=j+EDP_T2; jj++) {
-            if (ii==i && jj==j)
-                break;
-            sampleNeighbourPixels(p_img, width, ii, jj, &a, &b, &c, &d, &e, &f, &g, &h, &q, &r, &s);
-            getVecBforEDP(&GET2D(mat_C, EDP_N, m, 0), a, b, c, d, e, f, g, h, q, r, s);
-            vec_y[m++] = (I64)SPIX(p_img, width, ii, jj, MID_VAL) - MID_VAL;
-        }
-    }
-    
-    matrixMultiply(mat_R, mat_C, mat_C, EDP_M, EDP_N, EDP_N); // R = C.T * T
-    
-    matrixMultiply(p_vec_r, mat_C, vec_y, EDP_M, EDP_N, 1);   // r = C.T * y
-    
-    for (ii=(EDP_N-1); ii>=0; ii--)
-        p_vec_r[ii] <<= EDP_SFT;
-    
-    return Solve_Ax_b(mat_R, p_vec_r, EDP_N);                 // R * a = r , solve a, put a to vec_r
-}
-
-
-static int doEDP (I64 p_vec_r [EDP_N], int a, int b, int c, int d, int e, int f, int g, int h, int q, int r, int s) {
-    I64 px;
-    I64 vec_b [EDP_N];                                        // (N*1) matrix, i.e. a column vector
-    
-    getVecBforEDP(vec_b, a, b, c, d, e, f, g, h, q, r, s);
-    
-    matrixMultiply(&px, p_vec_r, vec_b, EDP_N, 1, 1);         // px = a · b
-    
-    px = ((px + (1<<EDP_SFT>>1)) >> EDP_SFT);
-    
-    return (int)CLIP(px+MID_VAL, 0, MAX_VAL);
-}
-
 
 
 static int simplePredict (int a, int b, int c, int d, int e, int f, int g, int h, int q, int r, int s) {
@@ -339,11 +403,11 @@ static int getContextAddress (int a, int b, int c, int d, int e, int f, int qu, 
 }
 
 
-static int correctPxByContext (int ctx_item, int *p_px) {
-    int sign = (ctx_item >> (CTX_SCALE-1)) & 1;
-    int bias = (ctx_item >> CTX_SCALE) + sign;
-    (*p_px) = CLIP((*p_px)+bias, 0, MAX_VAL);
-    return sign;
+static int correctPxByContext (int ctx_item, int px, int *p_sign) {
+    int px_inc;
+    *p_sign = (ctx_item >> (CTX_SCALE-1)) & 1;
+    px_inc  = (ctx_item >> CTX_SCALE) + *p_sign;
+    return CLIP(px+px_inc, 0, MAX_VAL);
 }
 
 
@@ -681,7 +745,7 @@ static int checkParam (int height, int width, int n_channel, int near, int k_ste
         return -1;
     if (near < 0 || near > MAX_NEAR)
         return -1;
-    if (k_step < 3 || k_step > N_QD)
+    if (k_step < MIN_K_STEP || k_step > N_QD)
         return -1;
     if (effort < MIN_EFFORT || effort > MAX_EFFORT)
         return -1;
@@ -690,8 +754,8 @@ static int checkParam (int height, int width, int n_channel, int near, int k_ste
 
 
 
-int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width, int *p_near, int *p_effort) {
-    int n_channel=1, i, j, k_step;
+static int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, UI8 *p_img_out, int *p_height, int *p_width, int *p_near, int *p_effort) {
+    int n_channel=1, n, m, avp_enable, k_step, i, j;
     
     int ctx_array [N_CONTEXT];
     
@@ -703,12 +767,14 @@ int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width,
     
     UI8 *p_buf_base = p_buf;
     
+    I64 *p_B_row=NULL, *p_F_row=NULL, *p_B=NULL, *p_F=NULL, p_E[GET_M(MAX_N)], vec_n[MAX_N], bias=BIAS_INIT;
+    
     if (decode) {
         if (getHeader(&p_buf, &n_channel, p_height, p_width, p_near, &k_step, p_effort))
             return -1;
     } else {
         *p_near   = CLIP(*p_near, 0, MAX_NEAR);
-        k_step    = CLIP(3+2*(*p_near), 3, N_QD);
+        k_step    = CLIP(MIN_K_STEP+2*(*p_near), MIN_K_STEP, N_QD);
         *p_effort = CLIP(*p_effort, MIN_EFFORT, MAX_EFFORT);
         putHeader(&p_buf, n_channel, *p_height, *p_width, *p_near, k_step, *p_effort);
     }
@@ -716,10 +782,27 @@ int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width,
     if (checkParam(*p_height, *p_width, n_channel, *p_near, k_step, *p_effort))
         return -1;
     
+    
+    n = N_LIST[ (*p_effort) ];
+    m = GET_M(n);
+    avp_enable = (n > 0) ? 1 : 0;
+    
+    
+    if (avp_enable) {
+        p_B_row = (I64*)malloc((*p_width) * m * 2 * sizeof(I64));
+        
+        if (p_B_row == NULL)
+            return -1;
+        
+        SET_ARRAY_ZERO(p_B_row, (*p_width) * m);
+        
+        p_F_row = p_B_row + (*p_width) * m;
+    }
+    
+    
     codec = newCodec(decode, p_buf);
     
-    for (i=0; i<N_CONTEXT; i++)
-        ctx_array[i] = 0;
+    SET_ARRAY_ZERO(ctx_array, N_CONTEXT);
     
     initBinCounterTree(bc_tree);
     
@@ -728,37 +811,58 @@ int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width,
         initAutoMapper(&maps[i][1]);
     }
     
+    
     for (i=0; i<(*p_height); i++) {
-        int err0 = 0;
+        int err = 0;
         
-        int fit_okay = 0;
-        I64 vec_r [EDP_N];
+        if (avp_enable) {
+            SET_ARRAY_ZERO(p_E, m);
+            AVPprecalcuate(m, p_F_row, p_B_row, (*p_width));
+        }
         
         for (j=0; j<(*p_width); j++) {
-            int a, b, c, d, e, f, g, h, q, r, s;
-            int px, qu, qv, qw, adr, sign, x, y=0, z=0;
+            int a, b, c, d, e, f, g, h, q, r, s, t;
+            int px1_vld=0, px2_vld=0;
+            I64 bias1=0, bias2=0, px1f=0, px2f=0;
+            int px0, px;
+            int qu, qv, qw, adr, sign, x, y=0, z=0;
             
-            sampleNeighbourPixels(p_img, (*p_width), i, j, &a, &b, &c, &d, &e, &f, &g, &h, &q, &r, &s);
+            sampleNeighbourPixels(p_img_out, (*p_width), i, j, &a, &b, &c, &d, &e, &f, &g, &h, &q, &r, &s, &t);
             
-            if (*p_effort == MAX_EFFORT)
-                if ((j%EDP_I) == 0)
-                    fit_okay = !fitEDP(vec_r, p_img, (*p_width), i, j);
+            if (avp_enable) {
+                AVPgetVecN(vec_n, n, a, b, c, d, e, f, g, h, q, r, s, t);
+                
+                p_B = p_B_row + (m * j);
+                p_F = p_F_row + (m * j);
+                
+                bias1 = bias * BIAS_COEF / (BIAS_COEF+1);
+                bias2 = bias * (BIAS_COEF+1) / BIAS_COEF;
+                bias1 = CLIP(bias1, -1, bias-1);
+                bias2 = CLIP(bias2, bias+1, BIAS_MAX+1);
+                bias1 = CLIP(bias1, 0, BIAS_MAX);
+                bias2 = CLIP(bias2, 0, BIAS_MAX);
+                
+                px1_vld = AVPpredict(n, m, p_E, p_F, vec_n, bias1, &px1f);
+                px2_vld = AVPpredict(n, m, p_E, p_F, vec_n, bias2, &px2f);
+            }
             
-            if (fit_okay)
-                px = doEDP(vec_r, a, b, c, d, e, f, g, h, q, r, s);
-            else
-                px = simplePredict(a, b, c, d, e, f, g, h, q, r, s);
+            px0 = simplePredict(a, b, c, d, e, f, g, h, q, r, s);
             
-            getQuantizedDelta(a, b, c, d, e, f, g, err0, &qu, &qv, &qw);
+            if (px1_vld) {
+                px0 = (int)((px1f + (1<<FB1>>1)) >> FB1);
+            } else {
+                px0 = simplePredict(a, b, c, d, e, f, g, h, q, r, s);
+                px1f = px0 << FB1;
+            }
             
-            err0 = px;
+            getQuantizedDelta(a, b, c, d, e, f, g, err, &qu, &qv, &qw);
             
-            adr = getContextAddress(a, b, c, d, e, f, qu, px);
+            adr = getContextAddress(a, b, c, d, e, f, qu, px0);
             
-            sign = correctPxByContext(ctx_array[adr], &px);
+            px = correctPxByContext(ctx_array[adr], px0, &sign);
             
             if (!decode) {
-                x = GET2D(p_img, *p_width, i, j);
+                x = G2D(p_img, *p_width, i, j);
                 y = mapXtoY(x, px, sign, *p_near);
                 z = mapYtoZ(&maps[px][sign], y);
             }
@@ -772,13 +876,28 @@ int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width,
             
             x = mapYtoX(y, px, sign, *p_near);
             
-            GET2D(p_img, (*p_width), i, j) = (UI8)x;
+            G2D(p_img_out, (*p_width), i, j) = (UI8)x;
             
-            err0 = CLIP((x-err0), MIN_BIAS, MAX_BIAS);
+            err = CLIP((x-px0), MIN_PX_INC, MAX_PX_INC);
             
-            updateContext(&ctx_array[adr], err0);
+            updateContext(&ctx_array[adr], err);
+            
+            if (avp_enable) {
+                I64 s_curr = ABS(px1f - (x<<FB1));
+                I64 s_sum  = (p_E[0] + p_F[0]) + (s_curr * BETA / (BETA-1));
+                
+                AVPupdate(n, m, p_E, p_B, vec_n, x, s_curr, s_sum);
+                
+                if (px1_vld && px2_vld) {
+                    px1f = ABS(px1f - (x<<FB1));
+                    px2f = ABS(px2f - (x<<FB1));
+                    bias = (px1f > px2f) ? bias2 : bias1;
+                }
+            }
         }
     }
+    
+    free(p_B_row);
     
     flushEncoder(&codec);
     
@@ -788,3 +907,51 @@ int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width,
         return codec.p_buf - p_buf_base;
 }
 
+
+
+// return :
+//    positive value : compressed stream length
+//                -1 : failed
+int NBLICcompress (UI8 *p_buf, UI8 *p_img, int height, int width, int *p_near, int *p_effort) {
+    int len_best=-1, best_effort=-1, effort, len;
+    UI8 *p_img_out;
+    
+    *p_near   = CLIP(*p_near, 0, MAX_NEAR);
+    *p_effort = CLIP(*p_effort, MIN_EFFORT, MAX_EFFORT);
+    
+    if (checkParam(height, width, 1, *p_near, MIN_K_STEP, *p_effort))
+        return -1;
+    
+    p_img_out = (UI8*)malloc(height * width * sizeof(UI8));
+    
+    if (p_img_out == NULL)
+        return -1;
+    
+    for (effort=MIN_EFFORT; effort<=(*p_effort); effort++) {
+        len = NBLICcodec(0, p_buf, p_img, p_img_out, &height, &width, p_near, &effort);
+        if (len >= 0 && (len_best<0 || len_best>len)) {
+            len_best = len;
+            best_effort = effort;
+        }
+    }
+    
+    if (len_best >= 0) {
+        if (best_effort != (*p_effort)) {
+            len_best = NBLICcodec(0, p_buf, p_img, p_img_out, &height, &width, p_near, &best_effort);
+            //printf("    use effort=%d rather than %d\n", best_effort, (*p_effort));
+            *p_effort = best_effort;
+        }
+    }
+    
+    free(p_img_out);
+    return len_best;
+}
+
+
+
+// return :
+//                 0 : success
+//                -1 : failed
+int NBLICdecompress (UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width, int *p_near, int *p_effort) {
+    return NBLICcodec(1, p_buf, NULL, p_img, p_height, p_width, p_near, p_effort);
+}
