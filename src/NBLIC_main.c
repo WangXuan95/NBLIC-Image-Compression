@@ -4,22 +4,18 @@
 #include "NBLIC.h"
 
 
-static char toLower (char c) {
-    if (c >= 'A' && c <= 'Z')
-        return c + 32;
-    else
-        return c;
-}
+
+#define  TO_LOWER(c)   ((((c) >= 'A') && ((c) <= 'Z')) ? ((c)+32) : (c))
 
 
 // return:
 //     1 : match
 //     0 : mismatch
-static int suffix_match (const char *string, const char *suffix) {
+static int matchSuffixIgnoringCase (const char *string, const char *suffix) {
     const char *p1, *p2;
     for (p1=string; *p1; p1++);
     for (p2=suffix; *p2; p2++);
-    while (toLower(*p1) == toLower(*p2)) {
+    while (TO_LOWER(*p1) == TO_LOWER(*p2)) {
         if (p2 <= suffix)
             return 1;
         if (p1 <= string)
@@ -52,16 +48,12 @@ const char *USAGE =
 
 
 
-#define   IMG_MAX_LEN   (NBLIC_MAX_HEIGHT * NBLIC_MAX_WIDTH)
-#define   BUF_MAX_LEN   (IMG_MAX_LEN * 2)
-
-
 // return:
 //     -1 : exit with error
 //      0 : exit normally
 int main (int argc, char **argv) {
-    static unsigned char img [IMG_MAX_LEN];
-    static unsigned char buf [BUF_MAX_LEN];
+    static unsigned char img [NBLIC_MAX_IMG_SIZE];
+    static unsigned char buf [NBLIC_MAX_IMG_SIZE * 2];
 
     int height      = -1;
     int width       = -1;
@@ -93,8 +85,8 @@ int main (int argc, char **argv) {
     printf("  input  file        = %s\n" , p_src_fname);
     printf("  output file        = %s\n" , p_dst_fname);
     
-    in_is_nblic = suffix_match(p_src_fname, ".nblic");
-    out_is_bmp  = suffix_match(p_dst_fname, ".bmp");
+    in_is_nblic = matchSuffixIgnoringCase(p_src_fname, ".nblic");
+    out_is_bmp  = matchSuffixIgnoringCase(p_dst_fname, ".bmp");
     
     if (!in_is_nblic) {         // src file name not ends with .nblic, compress
         
@@ -107,8 +99,7 @@ int main (int argc, char **argv) {
         }
         
         printf("  input image format = %s\n"      , in_is_bmp?"BMP":"PGM");
-        printf("  input image shape  = %d x %d\n" , width , height );
-        printf("  input image size   = %d B\n"    , width * height );
+        printf("  input image shape  = %d x %d\n" , width, height );
         printf("  compressing ...\n");
         
         len = NBLICcompress(buf, img, height, width, &near, &effort);
@@ -119,10 +110,10 @@ int main (int argc, char **argv) {
         }
         
         printf("  effort             = %d\n"      , effort);
-        printf("  near               = %d (%s)\n" , near   , (near<=0)?"lossless":"lossy"  );
-        printf("  output size        = %d B\n" , len    );
-        printf("  compression rate   = %.5f\n" , (1.0*width*height)/len );
-        printf("  compression bpp    = %.5f\n" , (8.0*len)/(width*height) );
+        printf("  near               = %d (%s)\n" , near, (near<=0)?"lossless":"lossy");
+        printf("  output size        = %d B\n"    , len    );
+        printf("  compression rate   = %.5f\n"    , (1.0*width*height)/len );
+        printf("  compression bpp    = %.5f\n"    , (8.0*len)/(width*height) );
         
         if ( writeBytesToFile(p_dst_fname, buf, len) ) {
             printf("  ***Error : write %s failed\n", p_dst_fname);
@@ -131,7 +122,7 @@ int main (int argc, char **argv) {
         
     } else {                    // src file name ends with .nblic, decompress
         
-        len = loadBytesFromFile(p_src_fname, buf, BUF_MAX_LEN);
+        len = loadBytesFromFile(p_src_fname, buf, NBLIC_MAX_IMG_SIZE*2);
 
         if (len < 0) {
             printf("  ***Error : open %s failed\n", p_src_fname);
@@ -147,9 +138,9 @@ int main (int argc, char **argv) {
         }
         
         printf("  effort             = %d\n"      , effort);
-        printf("  near               = %d (%s)\n" , near   , (near  <=0)?"lossless":"lossy"  );
-        printf("  output image shape = %d x %d\n" , width , height );
+        printf("  near               = %d (%s)\n" , near, (near  <=0)?"lossless":"lossy");
         printf("  output image format= %s\n"      , out_is_bmp?"BMP":"PGM");
+        printf("  output image shape = %d x %d\n" , width, height );
         
         if (out_is_bmp) {
             if ( writeBMPGrayImageFile(p_dst_fname, img, height, width) ) {

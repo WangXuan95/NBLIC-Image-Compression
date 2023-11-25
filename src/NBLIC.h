@@ -28,6 +28,7 @@
 
 #define    NBLIC_MAX_HEIGHT    10240
 #define    NBLIC_MAX_WIDTH     10240
+#define    NBLIC_MAX_IMG_SIZE  (NBLIC_MAX_HEIGHT * NBLIC_MAX_WIDTH)
 
 #define    MIN_EFFORT          1
 #define    MAX_EFFORT          4
