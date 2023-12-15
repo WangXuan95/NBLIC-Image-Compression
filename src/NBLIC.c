@@ -22,6 +22,7 @@
 //
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "NBLIC.h"
 
@@ -78,9 +79,9 @@ typedef    long long int          I64;
 
 #define    GET_M(n)               (1+(n)+(n)*(n))
 
-const static int N_LIST [MAX_EFFORT+1] = {-1, 0, 6, 10, 12};
+const static int N_LIST [MAX_EFFORT+1] = {-1, 0, 6, 10};
 
-#define    MAX_N                  12
+#define    MAX_N                  10
 
 
 
@@ -165,8 +166,8 @@ static void AVPgetVecN (I64 *vec_n, int n, int a, int b, int c, int d, int e, in
     if (n > 7) vec_n[7] = h;
     if (n > 8) vec_n[8] = q;
     if (n > 9) vec_n[9] = g;
-    if (n >10) vec_n[10]= r;
-    if (n >11) vec_n[11]= s;
+    //if (n >10) vec_n[10]= r;
+    //if (n >11) vec_n[11]= s;
     
     {
         int k;
@@ -754,7 +755,7 @@ static int checkParam (int height, int width, int n_channel, int near, int k_ste
 
 
 
-static int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, UI8 *p_img_out, int *p_height, int *p_width, int *p_near, int *p_effort) {
+static int NBLICcodec (int verbose, int decode, UI8 *p_buf, UI8 *p_img, UI8 *p_img_out, int *p_height, int *p_width, int *p_near, int *p_effort) {
     int n_channel=1, n, m, avp_enable, k_step, i, j;
     
     int ctx_array [N_CONTEXT];
@@ -814,6 +815,13 @@ static int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, UI8 *p_img_out, int *
     
     for (i=0; i<(*p_height); i++) {
         int err = 0;
+        
+        if (verbose) {
+            if ((i&0x7) == 0) {
+                printf("\r    %s row %d/%d (%.2lf%%)", (decode?"decoding":"encoding"), i, (*p_height), (100.0*i)/(*p_height));
+                fflush(stdout);
+            }
+        }
         
         if (avp_enable) {
             SET_ARRAY_ZERO(p_E, m);
@@ -897,6 +905,12 @@ static int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, UI8 *p_img_out, int *
         }
     }
     
+    if (verbose) {
+        printf("\r                                                            ");
+        printf("\r");
+        fflush(stdout);
+    }
+    
     free(p_B_row);
     
     flushEncoder(&codec);
@@ -912,7 +926,7 @@ static int NBLICcodec (int decode, UI8 *p_buf, UI8 *p_img, UI8 *p_img_out, int *
 // return :
 //    positive value : compressed stream length
 //                -1 : failed
-int NBLICcompress (UI8 *p_buf, UI8 *p_img, int height, int width, int *p_near, int *p_effort) {
+int NBLICcompress (int verbose, UI8 *p_buf, UI8 *p_img, int height, int width, int *p_near, int *p_effort) {
     int len_best=-1, best_effort=-1, effort, len;
     UI8 *p_img_out;
     
@@ -928,7 +942,11 @@ int NBLICcompress (UI8 *p_buf, UI8 *p_img, int height, int width, int *p_near, i
         return -1;
     
     for (effort=MIN_EFFORT; effort<=(*p_effort); effort++) {
-        len = NBLICcodec(0, p_buf, p_img, p_img_out, &height, &width, p_near, &effort);
+        if (verbose)
+            printf("    try effort %d\n", effort);
+        
+        len = NBLICcodec(verbose, 0, p_buf, p_img, p_img_out, &height, &width, p_near, &effort);
+        
         if (len >= 0 && (len_best<0 || len_best>len)) {
             len_best = len;
             best_effort = effort;
@@ -937,9 +955,12 @@ int NBLICcompress (UI8 *p_buf, UI8 *p_img, int height, int width, int *p_near, i
     
     if (len_best >= 0) {
         if (best_effort != (*p_effort)) {
-            len_best = NBLICcodec(0, p_buf, p_img, p_img_out, &height, &width, p_near, &best_effort);
-            //printf("    use effort=%d rather than %d\n", best_effort, (*p_effort));
+            len_best = NBLICcodec(verbose, 0, p_buf, p_img, p_img_out, &height, &width, p_near, &best_effort);
+            
             *p_effort = best_effort;
+            
+            if (verbose)
+                printf("    use effort %d rather than %d\n", best_effort, (*p_effort));
         }
     }
     
@@ -952,6 +973,6 @@ int NBLICcompress (UI8 *p_buf, UI8 *p_img, int height, int width, int *p_near, i
 // return :
 //                 0 : success
 //                -1 : failed
-int NBLICdecompress (UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width, int *p_near, int *p_effort) {
-    return NBLICcodec(1, p_buf, NULL, p_img, p_height, p_width, p_near, p_effort);
+int NBLICdecompress (int verbose, UI8 *p_buf, UI8 *p_img, int *p_height, int *p_width, int *p_near, int *p_effort) {
+    return NBLICcodec(verbose, 1, p_buf, NULL, p_img, p_height, p_width, p_near, p_effort);
 }

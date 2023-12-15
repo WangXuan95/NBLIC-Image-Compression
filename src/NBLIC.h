@@ -31,7 +31,7 @@
 #define    NBLIC_MAX_IMG_SIZE  (NBLIC_MAX_HEIGHT * NBLIC_MAX_WIDTH)
 
 #define    MIN_EFFORT          1
-#define    MAX_EFFORT          4
+#define    MAX_EFFORT          3
 
 
 
@@ -55,7 +55,7 @@
 //    - positive value : compressed stream length
 //                  -1 : failed
 //
-extern int NBLICcompress   (unsigned char *p_buf, unsigned char *p_img, int height, int width, int *p_near, int *p_effort);
+extern int NBLICcompress   (int verbose, unsigned char *p_buf, unsigned char *p_img, int height, int width, int *p_near, int *p_effort);
 
 
 
@@ -73,7 +73,7 @@ extern int NBLICcompress   (unsigned char *p_buf, unsigned char *p_img, int heig
 //    -   0 : success
 //    -  -1 : failed
 //
-extern int NBLICdecompress (unsigned char *p_buf, unsigned char *p_img, int *p_height, int *p_width, int *p_near, int *p_effort);
+extern int NBLICdecompress (int verbose, unsigned char *p_buf, unsigned char *p_img, int *p_height, int *p_width, int *p_near, int *p_effort);
 
 
 #endif // __NBLIC_H__

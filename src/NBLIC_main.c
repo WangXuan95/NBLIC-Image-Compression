@@ -54,7 +54,8 @@ const char *USAGE =
 int main (int argc, char **argv) {
     static unsigned char img [NBLIC_MAX_IMG_SIZE];
     static unsigned char buf [NBLIC_MAX_IMG_SIZE * 2];
-
+    
+    int verbose     =  0;
     int height      = -1;
     int width       = -1;
     int near        =  0;
@@ -82,6 +83,10 @@ int main (int argc, char **argv) {
         if ( sscanf(argv[4], "%d", &near) <= 0 )
             near = 0;
     
+    if (argc >= 6)
+        if (argv[5][0] == 'v')
+            verbose = 1;
+    
     printf("  input  file        = %s\n" , p_src_fname);
     printf("  output file        = %s\n" , p_dst_fname);
     
@@ -100,9 +105,8 @@ int main (int argc, char **argv) {
         
         printf("  input image format = %s\n"      , in_is_bmp?"BMP":"PGM");
         printf("  input image shape  = %d x %d\n" , width, height );
-        printf("  compressing ...\n");
         
-        len = NBLICcompress(buf, img, height, width, &near, &effort);
+        len = NBLICcompress(verbose, buf, img, height, width, &near, &effort);
         
         if (len < 0) {
             printf("  ***Error : compress failed\n");
@@ -130,9 +134,8 @@ int main (int argc, char **argv) {
         }
         
         printf("  input size         = %d B\n" , len );
-        printf("  decompressing ...\n");
         
-        if ( NBLICdecompress(buf, img, &height, &width, &near, &effort) < 0 ) {
+        if ( NBLICdecompress(verbose, buf, img, &height, &width, &near, &effort) < 0 ) {
             printf("  ***Error : decompress failed\n");
             return -1;
         }
