@@ -76,7 +76,7 @@ Where:
 
 - `input-image-file` can ends with `.pgm` , `.pnm` , or `.bmp`
 - `output-file` can only ends with `.nblic`
-- `effort` can be 1 (fastest), 2, 3, or 4 (deepest)
+- `effort` can be 1 (fastest), 2, or 3 (deepest)
 - `near` can be 0 (lossless) or 1,2,3,... (lossy)
 
 For example:
