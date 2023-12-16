@@ -36,7 +36,7 @@ const char *USAGE =
   "|   nblic_codec <input-image-file> <output-file(.nblic)> [<effort>] [<near>] |\n"
   "|     where: <input-image-file> can be .pgm, .pnm, or .bmp                   |\n"
   "|            <output-file>      can only be .nblic                           |\n"
-  "|            <effort>           can be 1, 2, 3, or 4                         |\n"
+  "|            <effort>           can be 1, 2, or 3                            |\n"
   "|            <near>             can be 0 (lossless) or 1,2,3,... (lossy)     |\n"
   "|----------------------------------------------------------------------------|\n"
   "| Decompress:                                                                |\n"
@@ -106,7 +106,9 @@ int main (int argc, char **argv) {
         printf("  input image format = %s\n"      , in_is_bmp?"BMP":"PGM");
         printf("  input image shape  = %d x %d\n" , width, height );
         
+        printf("\r    encoding ...");
         len = NBLICcompress(verbose, buf, img, height, width, &near, &effort);
+        printf("\r                                                                        \r");
         
         if (len < 0) {
             printf("  ***Error : compress failed\n");
@@ -115,7 +117,7 @@ int main (int argc, char **argv) {
         
         printf("  effort             = %d\n"      , effort);
         printf("  near               = %d (%s)\n" , near, (near<=0)?"lossless":"lossy");
-        printf("  output size        = %d B\n"    , len    );
+        printf("  output size        = %d B\n"    , len   );
         printf("  compression rate   = %.5f\n"    , (1.0*width*height)/len );
         printf("  compression bpp    = %.5f\n"    , (8.0*len)/(width*height) );
         
@@ -135,7 +137,11 @@ int main (int argc, char **argv) {
         
         printf("  input size         = %d B\n" , len );
         
-        if ( NBLICdecompress(verbose, buf, img, &height, &width, &near, &effort) < 0 ) {
+        printf("\r    decoding ...");
+        len = NBLICdecompress(verbose, buf, img, &height, &width, &near, &effort);
+        printf("\r                                                                        \r");
+        
+        if (len < 0) {
             printf("  ***Error : decompress failed\n");
             return -1;
         }

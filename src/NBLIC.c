@@ -818,7 +818,7 @@ static int NBLICcodec (int verbose, int decode, UI8 *p_buf, UI8 *p_img, UI8 *p_i
         
         if (verbose) {
             if ((i&0x7) == 0) {
-                printf("\r    %s row %d/%d (%.2lf%%)", (decode?"decoding":"encoding"), i, (*p_height), (100.0*i)/(*p_height));
+                printf("\r    effort=%d, %s row %d (%.2lf%%)" , (*p_effort), (decode?"decoding":"encoding"), i, (100.0*i)/(*p_height));
                 fflush(stdout);
             }
         }
@@ -905,11 +905,8 @@ static int NBLICcodec (int verbose, int decode, UI8 *p_buf, UI8 *p_img, UI8 *p_i
         }
     }
     
-    if (verbose) {
-        printf("\r                                                            ");
-        printf("\r");
-        fflush(stdout);
-    }
+    if (verbose)
+        printf("\r                                                                        \r");
     
     free(p_B_row);
     
@@ -942,9 +939,6 @@ int NBLICcompress (int verbose, UI8 *p_buf, UI8 *p_img, int height, int width, i
         return -1;
     
     for (effort=MIN_EFFORT; effort<=(*p_effort); effort++) {
-        if (verbose)
-            printf("    try effort %d\n", effort);
-        
         len = NBLICcodec(verbose, 0, p_buf, p_img, p_img_out, &height, &width, p_near, &effort);
         
         if (len >= 0 && (len_best<0 || len_best>len)) {
@@ -960,7 +954,7 @@ int NBLICcompress (int verbose, UI8 *p_buf, UI8 *p_img, int height, int width, i
             *p_effort = best_effort;
             
             if (verbose)
-                printf("    use effort %d rather than %d\n", best_effort, (*p_effort));
+                printf("    use effort %d instead of %d\n", best_effort, (*p_effort));
         }
     }
     

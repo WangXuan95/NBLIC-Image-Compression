@@ -38,6 +38,7 @@
 // function  : NBLIC image compress
 //
 // parameter :
+//    - verbose  : 1:print progress    0:don't print progress
 //    - p_buf    : Pointer to the compressed stream buffer. The buffer will be written.
 //    - p_img    : Pointer to the image pixel buffer. Each pixel is a 8-bit luminance value, which occupy an unsigned char. The buffer will be read. Pixels should be stored in this buffer in raster scan order (from left to right, from up to down).
 //    - height   : image height
@@ -48,8 +49,7 @@
 //    - p_effort : Pointer to the effort value. The user should specify a effort value in it.
 //                   1 : fastest and lowest compression ratio
 //                   2 : 
-//                   3 : 
-//                   4 : slowest and highest compression ratio
+//                   3 : slowest and highest compression ratio
 //
 // return :
 //    - positive value : compressed stream length
@@ -62,6 +62,7 @@ extern int NBLICcompress   (int verbose, unsigned char *p_buf, unsigned char *p_
 // function  : NBLIC image decompress
 //
 // parameter :
+//    - verbose  : 1:print progress    0:don't print progress
 //    - p_buf    : Pointer to the compressed stream buffer, which will be read.
 //    - p_img    : Pointer to the image pixel buffer. Each pixel is a 8-bit luminance value, which occupy an unsigned char. The buffer will be written. Pixels will be stored in this buffer in raster scan order (from left to right, from up to down).
 //    - p_height : Pointer to the image height. The user do not need to specify it, instead, he will get the image height in this pointer, which is parsed from the compressed file header.
