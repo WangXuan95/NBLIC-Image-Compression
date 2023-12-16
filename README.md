@@ -13,6 +13,8 @@ NBLIC (New Bee Lossless Image Compression) is a lossless & near-lossless gray im
 
 ### Development progress
 
+*Current Version: v0.3*
+
 - [x] 8-bit gray image lossless encode/decode is support now.
 - [x] 8-bit gray image near-lossless encode/decode is support now.
 - [ ] 24-bit RGB image lossless encode/decode will be supported in the future.
@@ -178,6 +180,12 @@ Decoding commands are simple, as shown in following table.
 
 　
 
+## Environment
+
+All encoders/decoders are run on my laptop (Windows 10, Intel Core i7-12700H, 16GB DDR4 3200MHz). All the Linux commands are run in Windows Subsystem of Linux (WSL).
+
+　
+
 ## Comparative indicators
 
 - **Compressed BPP** = total size after compression in bits / total pixel count. **The smaller the better**.
@@ -210,28 +218,27 @@ I use the following four image datasets for comparison.
 |        JPEG-LS         |     4.425      |        0.7        |         0.7         |
 |          WEBP          |     4.190      |       100.9       |         0.3         |
 |         CALIC          |     4.278      |       11.9        |        11.2         |
-|     JPEG-XL (FLIF)     |   **4.158**    |       13.4        |         4.4         |
-|  **NBLIC** (effort=1)  |   **4.163**    |        4.9        |         4.9         |
-|  **NBLIC** (effort=2)  |   **4.117**    |       15.0        |        12.3         |
-|  **NBLIC** (effort=3)  |   **4.107**    |       47.0        |        27.2         |
+|     JPEG-XL (FLIF)     |     4.158      |       13.4        |         4.4         |
+|  **NBLIC** (effort=1)  |   **4.157**    |        3.4        |         3.4         |
+|  **NBLIC** (effort=2)  |   **4.116**    |       10.7        |        11.0         |
+|  **NBLIC** (effort=3)  |   **4.105**    |       29.8        |        30.0         |
 
 　
 
 ## Results on benchmark2
 
-|          Format           | compressed BPP | compress time (s) | decompress time (s) |
-| :-----------------------: | :------------: | :---------------: | :-----------------: |
-|            PNG            |     4.637      |       124.3       |         0.1         |
-|    AVIF (not deepest)     |     4.646      |        3.1        |         0.9         |
-|  JPEG2000 (not deepest)   |     4.462      |        1.1        |         0.8         |
-|          JPEG-LS          |     4.338      |        0.5        |         0.5         |
-|           WEBP            |     4.332      |       118.6       |         0.3         |
-|           CALIC           |     4.181      |        8.1        |         7.6         |
-|      JPEG-XL (FLIF)       |     4.293      |       10.0        |         3.1         |
-|   **NBLIC** (effort=1)    |   **4.152**    |        3.2        |         3.1         |
-|   **NBLIC** (effort=2)    |   **4.094**    |       11.4        |        10.7         |
-|   **NBLIC** (effort=3)    |   **4.072**    |       40.5        |        29.7         |
-| ~~NBLIC old version 0.1~~ |   ~~4.113~~    |      ~~9.2~~      |       ~~7.6~~       |
+|         Format         | compressed BPP | compress time (s) | decompress time (s) |
+| :--------------------: | :------------: | :---------------: | :-----------------: |
+|          PNG           |     4.637      |       124.3       |         0.1         |
+|   AVIF (not deepest)   |     4.646      |        3.1        |         0.9         |
+| JPEG2000 (not deepest) |     4.462      |        1.1        |         0.8         |
+|        JPEG-LS         |     4.338      |        0.5        |         0.5         |
+|          WEBP          |     4.332      |       118.6       |         0.3         |
+|         CALIC          |     4.181      |        8.1        |         7.6         |
+|     JPEG-XL (FLIF)     |     4.293      |       10.0        |         3.1         |
+|  **NBLIC** (effort=1)  |   **4.146**    |        2.6        |         2.7         |
+|  **NBLIC** (effort=2)  |   **4.088**    |       10.1        |        10.3         |
+|  **NBLIC** (effort=3)  |   **4.066**    |       29.2        |        29.3         |
 
 　
 
@@ -246,27 +253,26 @@ I use the following four image datasets for comparison.
 |          WEBP          |     3.253      |       448.1       |         1.5         |
 |         CALIC          |   **3.012**    |       95.0        |        56.3         |
 |     JPEG-XL (FLIF)     |     3.050      |       94.1        |        14.7         |
-|  **NBLIC** (effort=1)  |   **3.032**    |       14.6        |        14.3         |
-|  **NBLIC** (effort=2)  |   **2.984**    |       96.8        |        81.6         |
-|  **NBLIC** (effort=3)  |   **2.966**    |       353.6       |        238.6        |
+|  **NBLIC** (effort=1)  |   **3.027**    |       11.2        |        11.8         |
+|  **NBLIC** (effort=2)  |   **2.981**    |       83.0        |        83.7         |
+|  **NBLIC** (effort=3)  |   **2.963**    |       261.4       |        263.8        |
 
 　
 
 ## Results on benchmark4
 
-|          Format           | compressed BPP | compress time (s) | decompress time (s) |
-| :-----------------------: | :------------: | :---------------: | :-----------------: |
-|            PNG            |     3.689      |      3696.6       |         1.4         |
-|    AVIF (not deepest)     |     3.745      |       23.6        |         7.7         |
-|  JPEG2000 (not deepest)   |     3.465      |       13.6        |        10.5         |
-|          JPEG-LS          |     3.429      |        4.9        |         4.1         |
-|           WEBP            |     3.395      |       887.9       |         2.8         |
-|           CALIC           |     3.255      |       33.9        |        33.1         |
-|      JPEG-XL (FLIF)       |   **3.159**    |       186.5       |        28.3         |
-|   **NBLIC** (effort=1)    |   **3.242**    |       26.5        |        25.8         |
-|   **NBLIC** (effort=2)    |   **3.017**    |       177.7       |        152.7        |
-|   **NBLIC** (effort=3)    |   **2.993**    |       650.6       |        472.6        |
-| ~~NBLIC old version 0.1~~ |   ~~3.036~~    |     ~~139.7~~     |      ~~91.6~~       |
+|         Format         | compressed BPP | compress time (s) | decompress time (s) |
+| :--------------------: | :------------: | :---------------: | :-----------------: |
+|          PNG           |     3.689      |      3696.6       |         1.4         |
+|   AVIF (not deepest)   |     3.745      |       23.6        |         7.7         |
+| JPEG2000 (not deepest) |     3.465      |       13.6        |        10.5         |
+|        JPEG-LS         |     3.429      |        4.9        |         4.1         |
+|          WEBP          |     3.395      |       887.9       |         2.8         |
+|         CALIC          |     3.255      |       33.9        |        33.1         |
+|     JPEG-XL (FLIF)     |   **3.159**    |       186.5       |        28.3         |
+|  **NBLIC** (effort=1)  |   **3.236**    |       17.0        |        18.2         |
+|  **NBLIC** (effort=2)  |   **3.012**    |       142.9       |        144.2        |
+|  **NBLIC** (effort=3)  |   **2.987**    |       455.4       |        462.1        |
 
 　
 

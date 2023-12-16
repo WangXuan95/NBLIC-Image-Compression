@@ -21,15 +21,17 @@
 //   so there is no guarantee that the generated compressed files will be compatible with subsequent versions
 //
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 
 #include "NBLIC.h"
 
-const char *title = "NBLIC0.2";
+const char *title = "NBLIC0.3";
 
 typedef    unsigned char          UI8;
-typedef    long long int          I64;
+typedef    uint32_t               U32;
+typedef    int64_t                I64;
 
 
 #define    SWAP(type,a,b)         {type t; (t)=(a); (a)=(b); (b)=(t);}
@@ -63,7 +65,8 @@ typedef    long long int          I64;
 #define    N_MAPPER               20
 
 #define    MAX_COUNTER            256
-#define    PROB_ONE               (1 << 16)
+
+#define    PROB_MAX               (1 << 12)
 
 #define    FB1                    12
 #define    FB2                    2
@@ -85,18 +88,18 @@ const static int N_LIST [MAX_EFFORT+1] = {-1, 0, 6, 10};
 
 
 
-#define SET_ARRAY_ZERO(array,len) { \
-    int i;                          \
-    for (i=0; i<(len); i++)         \
-        (array)[i] = 0;             \
-}                                   \
+#define SET_ARRAY_ZERO(array,len) {   \
+    int i;                            \
+    for (i=0; i<(len); i++)           \
+        (array)[i] = 0;               \
+}                                     \
 
 
-#define COPY_ARRAY(p_dst,p_src,len) {                         \
-    int i;                                                    \
-    for (i=0; i<(len); i++)                                   \
-        (p_dst)[i] = (p_src)[i];                              \
-}                                                             \
+#define COPY_ARRAY(p_dst,p_src,len) { \
+    int i;                            \
+    for (i=0; i<(len); i++)           \
+        (p_dst)[i] = (p_src)[i];      \
+}                                     \
 
 
 
@@ -520,52 +523,63 @@ static void addY (AutoMapper_t *p_map, int y) {
 
 typedef struct {
     UI8 *p_buf;
-    int  creg;
-    int  areg;
-    UI8  buf0;
-    UI8  buf1;
-    UI8  decode;
+    U32  v1;      // Range, initially [0, 1), scaled by 2^32
+    U32  v2;
+    U32  v;       // last 4 input bytes of compressed stream (only for decode)
+    UI8  decode;  // 1:decode    0:encode
 } CODEC_t;
 
 
 static CODEC_t newCodec (int decode, UI8 *p_buf) {
-    CODEC_t codec = {0, 0, 0xff*0xff, 0, 0, 0};
+    CODEC_t codec = {NULL, 0, 0xFFFFFFFF, 0, 0};
     codec.decode  = (UI8)decode;
     codec.p_buf   = p_buf;
-    if (decode) {
-        codec.p_buf+= 2;
-        codec.creg  = ( *(codec.p_buf++) ) * 0xff;
-        codec.creg +=   *(codec.p_buf++);
+    
+    if (decode) {    // for decode, let v = first 4 bytes of compressed stream
+        codec.v = (codec.v<<8) + (*(codec.p_buf++));
+        codec.v = (codec.v<<8) + (*(codec.p_buf++));
+        codec.v = (codec.v<<8) + (*(codec.p_buf++));
+        codec.v = (codec.v<<8) + (*(codec.p_buf++));
     }
+    
     return codec;
 }
 
 
-static void normEncoder (CODEC_t *p_co) {
-    if (!p_co->decode) {
-        if (p_co->creg >= 0xff*0xff) {
-            p_co->creg -= 0xff*0xff;
-            p_co->buf0 ++;
-            if (p_co->buf0 == 0xff) {
-                p_co->buf0 = 0;
-                p_co->buf1 ++;
-            }
-        }
-        *(p_co->p_buf++) = p_co->buf1;
-        p_co->buf1 = p_co->buf0;
-        p_co->buf0 = (UI8)( ((p_co->creg >> 8) + p_co->creg + 1) >> 8 );
-        p_co->creg += p_co->buf0;
-        p_co->creg &= 0xff;
-        p_co->creg = (p_co->creg << 8) - p_co->creg;
+static void binCodec (CODEC_t *p_co, int *p_bin, U32 prob) {
+    U32 vm = p_co->v1 + ((p_co->v2-p_co->v1)>>12)*prob + (((p_co->v2-p_co->v1)&0xfff)*prob>>12);
+    
+    if (p_co->decode)
+        *p_bin = (p_co->v <= vm) ? 1 : 0;
+    
+    if (*p_bin)
+        p_co->v2 = vm;
+    else
+        p_co->v1 = vm + 1;
+    
+    while (((p_co->v1^p_co->v2)&0xff000000) == 0) {
+        p_co->v <<= 8;
+        if (p_co->decode)
+            p_co->v += (*(p_co->p_buf++));                // read byte from compressed stream
+        else
+            (*(p_co->p_buf++)) = (uint8_t)(p_co->v2>>24); // write byte to compressed stream
+        p_co->v1 <<= 8;
+        p_co->v2 <<= 8;
+        p_co->v2  += 0xFF;
     }
 }
 
 
 static void flushEncoder (CODEC_t *p_co) {
-    normEncoder(p_co);
-    normEncoder(p_co);
-    normEncoder(p_co);
-    normEncoder(p_co);
+    if (!p_co->decode) {
+        (*(p_co->p_buf++)) = (uint8_t)(p_co->v1>>24);
+        p_co->v1 <<= 8;
+        (*(p_co->p_buf++)) = (uint8_t)(p_co->v1>>24);
+        p_co->v1 <<= 8;
+        (*(p_co->p_buf++)) = (uint8_t)(p_co->v1>>24);
+        p_co->v1 <<= 8;
+        (*(p_co->p_buf++)) = (uint8_t)(p_co->v1>>24);
+    }
 }
 
 
@@ -586,7 +600,7 @@ static void initBinCounterTree (BIN_CNT_t bc_tree [][256]) {
 }
 
 
-static void AriUpdateCounter (BIN_CNT_t *p_bc, int bin, int qw) {
+static void counterUpdate (BIN_CNT_t *p_bc, int bin, int qw) {
     if (bin)
         p_bc->c1 += qw;
     else
@@ -601,63 +615,22 @@ static void AriUpdateCounter (BIN_CNT_t *p_bc, int bin, int qw) {
 }
 
 
-static int getProb0 (BIN_CNT_t *p_bc) {
+static int getProb1 (BIN_CNT_t *p_bc) {
     int c0 = p_bc->c0;
     int c1 = p_bc->c1;
-    return (PROB_ONE * c0) / (c0 + c1);
-}
-
-
-static int AriGetAvd (int areg, int prob) {
-    const static int table_th [30] = {0x7800, 0x7000, 0x6800, 0x6000, 0x5800, 0x5000, 0x4800, 0x4000, 0x3c00, 0x3800, 0x3400, 0x3000, 0x2c00, 0x2800, 0x2400, 0x2000, 0x1c00, 0x1800, 0x1400, 0x1000, 0x0e00, 0x0c00, 0x0a00, 0x0800, 0x0600, 0x0400, 0x0300, 0x0200, 0x0180, 0x0101};
-    const static int table_av [31] = {0x7ab6, 0x7068, 0x6678, 0x5ce2, 0x53a6, 0x4ac0, 0x4230, 0x39f4, 0x33fc, 0x301a, 0x2c4c, 0x2892, 0x24ea, 0x2156, 0x1dd6, 0x1a66, 0x170a, 0x13c0, 0x1086, 0x0d60, 0x0b0e, 0x0986, 0x0804, 0x0686, 0x050a, 0x0394, 0x027e, 0x01c6, 0x013e, 0x0100, 0x0002};
-    int i, hd, av;
-    
-    for (i=0; i<30; i++)
-        if (table_th[i] < prob)
-            break;
-    
-    av = table_av[i];
-    
-    for (hd=0x8000; hd>areg; hd>>=1)
-        if (av > 0x0002)
-            av >>= 1;
-    
-    av = areg - av;
-    
-    if (av < hd)
-        av = (av+hd) / 2;
-    
-    return av;
+    return (PROB_MAX * c1) / (c0 + c1);
 }
 
 
 static void AriCodec (CODEC_t *p_co, BIN_CNT_t *p_ubc, BIN_CNT_t *p_vbc, int qw, int *p_bin) {
-    int prob = (getProb0(p_ubc) * (N_QW-qw) + getProb0(p_vbc) * qw + N_QW/2) / N_QW;
-    int mps  = (prob < PROB_ONE/2) ? 1 : 0;
-    int av   = AriGetAvd(p_co->areg, (mps ? prob : (PROB_ONE-prob)));
+    int prob = (getProb1(p_ubc) * (N_QW-qw) + getProb1(p_vbc) * qw + N_QW/2) / N_QW;
     
-    if (p_co->decode)
-        *p_bin = (p_co->creg < av) ? mps : !mps;
+    prob = CLIP(prob, 1, (PROB_MAX-1));
     
-    if ((*p_bin) == mps) {
-        p_co->areg  = av;
-    } else {
-        p_co->areg -= av;
-        p_co->creg += p_co->decode ? -av : av;
-    }
+    binCodec(p_co, p_bin, (U32)prob);
     
-    AriUpdateCounter(p_ubc, *p_bin, N_QW-qw);
-    AriUpdateCounter(p_vbc, *p_bin, qw);
-    
-    if (p_co->areg <= 0xff) {
-        if (p_co->decode)
-            p_co->creg = (p_co->creg << 8) - p_co->creg + (*(p_co->p_buf++));
-        
-        normEncoder(p_co);
-        
-        p_co->areg = (p_co->areg << 8) - p_co->areg;
-    }
+    counterUpdate(p_ubc, *p_bin, N_QW-qw);
+    counterUpdate(p_vbc, *p_bin, qw);
 }
 
 
@@ -924,42 +897,7 @@ static int NBLICcodec (int verbose, int decode, UI8 *p_buf, UI8 *p_img, UI8 *p_i
 //    positive value : compressed stream length
 //                -1 : failed
 int NBLICcompress (int verbose, UI8 *p_buf, UI8 *p_img, int height, int width, int *p_near, int *p_effort) {
-    int len_best=-1, best_effort=-1, effort, len;
-    UI8 *p_img_out;
-    
-    *p_near   = CLIP(*p_near, 0, MAX_NEAR);
-    *p_effort = CLIP(*p_effort, MIN_EFFORT, MAX_EFFORT);
-    
-    if (checkParam(height, width, 1, *p_near, MIN_K_STEP, *p_effort))
-        return -1;
-    
-    p_img_out = (UI8*)malloc(height * width * sizeof(UI8));
-    
-    if (p_img_out == NULL)
-        return -1;
-    
-    for (effort=MIN_EFFORT; effort<=(*p_effort); effort++) {
-        len = NBLICcodec(verbose, 0, p_buf, p_img, p_img_out, &height, &width, p_near, &effort);
-        
-        if (len >= 0 && (len_best<0 || len_best>len)) {
-            len_best = len;
-            best_effort = effort;
-        }
-    }
-    
-    if (len_best >= 0) {
-        if (best_effort != (*p_effort)) {
-            len_best = NBLICcodec(verbose, 0, p_buf, p_img, p_img_out, &height, &width, p_near, &best_effort);
-            
-            *p_effort = best_effort;
-            
-            if (verbose)
-                printf("    use effort %d instead of %d\n", best_effort, (*p_effort));
-        }
-    }
-    
-    free(p_img_out);
-    return len_best;
+    return NBLICcodec(verbose, 0, p_buf, p_img, p_img, &height, &width, p_near, p_effort);
 }
 
 
