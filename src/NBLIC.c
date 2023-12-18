@@ -827,8 +827,6 @@ static int NBLICcodec (int verbose, int decode, UI8 *p_buf, UI8 *p_img, UI8 *p_i
                 px2_vld = AVPpredict(n, m, p_E, p_F, vec_n, bias2, &px2f);
             }
             
-            px0 = simplePredict(a, b, c, d, e, f, g, h, q, r, s);
-            
             if (px1_vld) {
                 px0 = (int)((px1f + (1<<FB1>>1)) >> FB1);
             } else {
