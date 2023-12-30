@@ -6,9 +6,8 @@ NBLIC (New Bee Lossless Image Compression) is a lossless & near-lossless gray im
 
 ### Features
 
-- **Very high compression ratio**, significantly higher than state-of-the-art lossless image compression standards such as JPEG-XL lossless, AVIF lossless, and maybe WebP2 lossless (will be compared in future).
+- **High compression ratio**, significantly higher than state-of-the-art lossless image compression standards such as JPEG-XL lossless, AVIF lossless, and maybe WebP2 lossless (will be compared in future).
 - **Low code** (only 1000 lines of C language of encoder and decoder).
-- Acceptable performance.
 - Just single pass scan encode/decode, friendly for FPGA hardware streaming implementation.
 
 ### Development progress
@@ -30,6 +29,8 @@ The code files are in pure-C, located in the [src](./src) folder:
 | ------------ | ------------------------------------------------------------ |
 | NBLIC.c      | Implement NBLIC encoder/decoder                              |
 | NBLIC.h      | Expose the functions of NBLIC encoder/decoder to users.      |
+| QNBLIC.c     | Implement QNBLIC (Quicker NBLIC) encoder/decoder (for effort=0) |
+| QNBLIC.h     | Expose the functions of QNBLIC encoder/decoder to users.     |
 | FileIO.c     | Implement BMP and PGM image file reading/writing functions and binary file reading/writing functions. |
 | FileIO.h     | Expose the functions in FileIO.c to users.                   |
 | NBLIC_main.c | Include `main()` function. It calls `NBLIC.h` and `FileIO.h` to achieve image file encoding/decoding. |
@@ -50,13 +51,15 @@ We'll get the binary file `nblic_codec` . Here I've compiled it for you, you can
 
 ### Compile in Windows (CMD)
 
-If you add the Microsoft C compiler (`cl.exe`) to environment variables, you can compile using the command line (CMD).
+If you installed MinGW Compiler for Windows, you can compile using the command line (CMD).
 
 ```powershell
-cl src\*.c /Fenblic_codec.exe /Ox
+gcc src/*.c -o nblic_codec.exe -O3 -Wall
 ```
 
 We'll get the executable file `nblic_codec.exe` . Here I've compiled it for you, you can use it directly.
+
+> It is recommended to use the x64 compiler for compilation, as NBLIC performs a 64 bit integer calculation (int64_t in C) when effort>=2. If using a 32-bit x86 compiler, it will result in slower compression/decompression speed.
 
 　
 
@@ -78,8 +81,9 @@ Where:
 
 - `input-image-file` can ends with `.pgm` , `.pnm` , or `.bmp`
 - `output-file` can only ends with `.nblic`
-- `effort` can be 1 (fastest), 2, or 3 (deepest)
+- `effort` can be 0 (fastest), 1, 2, or 3 (deepest)
 - `near` can be 0 (lossless) or 1,2,3,... (lossy)
+- Note: when using lossy (near>0), effort cannot be 0
 
 For example:
 
@@ -159,7 +163,7 @@ Note that since I use Python's pillow library to encode/decode some formats, som
 |    WEBP lossless     |    Python     | `img.save('a.webp', lossless=True, method=6)`          |
 |        CALIC         |  Windows CMD  | `calic8e.exe a.raw <width> <height> <depth> 0 a.calic` |
 |    JPEG-XL (FLIF)    | Linux command | `./flif -e -N -E100 a.pgm a.flif`                      |
-| **NBLIC** (effort=?) | Linux command | `./nblic_codec a.pgm a.nblic ? 0`                      |
+| **NBLIC** (effort=?) |  Windows CMD  | `nblic_codec.exe a.pgm a.nblic ? 0`                    |
 
 　
 
@@ -176,7 +180,7 @@ Decoding commands are simple, as shown in following table.
 |   WEBP lossless   |    Python     | `numpy.asarray(Image.open('a.webp'))` |
 |       CALIC       |  Windows CMD  | `calic8d.exe a.calic a.raw`           |
 |  JPEG-XL (FLIF)   | Linux command | `./flif -d a.flif a.pgm`              |
-|     **NBLIC**     | Linux command | `./nblic_codec a.nblic a.pgm`         |
+|     **NBLIC**     |  Windows CMD  | `nblic_codec.exe a.nblic a.pgm`       |
 
 　
 
@@ -219,6 +223,7 @@ I use the following four image datasets for comparison.
 |          WEBP          |     4.190      |       100.9       |         0.3         |
 |         CALIC          |     4.278      |       11.9        |        11.2         |
 |     JPEG-XL (FLIF)     |     4.158      |       13.4        |         4.4         |
+|  **NBLIC** (effort=0)  |   **4.378**    |        1.1        |         2.0         |
 |  **NBLIC** (effort=1)  |   **4.157**    |        3.4        |         3.4         |
 |  **NBLIC** (effort=2)  |   **4.116**    |       10.7        |        11.0         |
 |  **NBLIC** (effort=3)  |   **4.105**    |       29.8        |        30.0         |
@@ -236,6 +241,7 @@ I use the following four image datasets for comparison.
 |          WEBP          |     4.332      |       118.6       |         0.3         |
 |         CALIC          |     4.181      |        8.1        |         7.6         |
 |     JPEG-XL (FLIF)     |     4.293      |       10.0        |         3.1         |
+|  **NBLIC** (effort=0)  |   **4.229**    |        1.3        |         2.8         |
 |  **NBLIC** (effort=1)  |   **4.146**    |        2.6        |         2.7         |
 |  **NBLIC** (effort=2)  |   **4.088**    |       10.1        |        10.3         |
 |  **NBLIC** (effort=3)  |   **4.066**    |       29.2        |        29.3         |
@@ -251,8 +257,9 @@ I use the following four image datasets for comparison.
 | JPEG2000 (not deepest) |     3.317      |        6.2        |         5.3         |
 |        JPEG-LS         |     3.185      |        2.5        |         2.4         |
 |          WEBP          |     3.253      |       448.1       |         1.5         |
-|         CALIC          |   **3.012**    |       95.0        |        56.3         |
+|         CALIC          |     3.012      |       95.0        |        56.3         |
 |     JPEG-XL (FLIF)     |     3.050      |       94.1        |        14.7         |
+|  **NBLIC** (effort=0)  |   **3.058**    |        4.3        |         6.5         |
 |  **NBLIC** (effort=1)  |   **3.027**    |       11.2        |        11.8         |
 |  **NBLIC** (effort=2)  |   **2.981**    |       83.0        |        83.7         |
 |  **NBLIC** (effort=3)  |   **2.963**    |       261.4       |        263.8        |
@@ -269,7 +276,8 @@ I use the following four image datasets for comparison.
 |        JPEG-LS         |     3.429      |        4.9        |         4.1         |
 |          WEBP          |     3.395      |       887.9       |         2.8         |
 |         CALIC          |     3.255      |       33.9        |        33.1         |
-|     JPEG-XL (FLIF)     |   **3.159**    |       186.5       |        28.3         |
+|     JPEG-XL (FLIF)     |     3.159      |       186.5       |        28.3         |
+|  **NBLIC** (effort=0)  |   **3.259**    |        6.2        |         6.5         |
 |  **NBLIC** (effort=1)  |   **3.236**    |       17.0        |        18.2         |
 |  **NBLIC** (effort=2)  |   **3.012**    |       142.9       |        144.2        |
 |  **NBLIC** (effort=3)  |   **2.987**    |       455.4       |        462.1        |

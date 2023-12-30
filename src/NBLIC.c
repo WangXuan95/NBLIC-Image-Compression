@@ -44,6 +44,9 @@ typedef    int64_t                I64;
 
 #define    MAX_N_CHANNEL          1
 
+#define    MIN_EFFORT             1
+#define    MAX_EFFORT             3
+
 #define    MAX_VAL                255
 #define    MID_VAL                ((MAX_VAL+1)/2)
 
@@ -708,12 +711,27 @@ static int getHeader (UI8 **pp_buf, int *p_n_channel, int *p_height, int *p_widt
     return 0;
 }
 
+    
+
+// return:  -1:failed  0:success
+static int checkSize (int height, int width) {
+    if (height <= 0)
+        return -1;
+    if (width  <= 0)
+        return -1;
+    if (height > NBLIC_MAX_HEIGHT)
+        return -1;
+    if (width  > NBLIC_MAX_WIDTH)
+        return -1;
+    if ((height*width) > NBLIC_MAX_IMG_SIZE)
+        return -1;
+    return 0;
+}
+
 
 // return:  -1:failed  0:success
 static int checkParam (int height, int width, int n_channel, int near, int k_step, int effort) {
-    if (height < 0 || height > NBLIC_MAX_HEIGHT)
-        return -1;
-    if (width < 0 || width > NBLIC_MAX_WIDTH)
+    if (checkSize(height, width))
         return -1;
     if (n_channel < 0 || n_channel > MAX_N_CHANNEL)
         return -1;

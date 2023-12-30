@@ -1,7 +1,8 @@
 #include <stdio.h>
 
 #include "FileIO.h"
-#include "NBLIC.h"
+#include "NBLIC.h"     // NBLIC effort  =0
+#include "QNBLIC.h"    // NBLIC effort >=1
 
 
 
@@ -36,8 +37,9 @@ const char *USAGE =
   "|   nblic_codec <input-image-file> <output-file(.nblic)> [<effort>] [<near>] |\n"
   "|     where: <input-image-file> can be .pgm, .pnm, or .bmp                   |\n"
   "|            <output-file>      can only be .nblic                           |\n"
-  "|            <effort>           can be 1, 2, or 3                            |\n"
+  "|            <effort>           can be 0, 1, 2, or 3                         |\n"
   "|            <near>             can be 0 (lossless) or 1,2,3,... (lossy)     |\n"
+  "|            note: when using lossy (near>0), effort cannot be 0             |\n"
   "|----------------------------------------------------------------------------|\n"
   "| Decompress:                                                                |\n"
   "|   nblic_codec <input-file(.nblic)> <output-image-file>                     |\n"
@@ -53,13 +55,13 @@ const char *USAGE =
 //      0 : exit normally
 int main (int argc, char **argv) {
     static unsigned char img [NBLIC_MAX_IMG_SIZE];
-    static unsigned char buf [NBLIC_MAX_IMG_SIZE * 2];
+    static uint16_t      buf [NBLIC_MAX_IMG_SIZE];
     
     int verbose     =  0;
     int height      = -1;
     int width       = -1;
-    int near        =  0;
-    int effort      =  MIN_EFFORT;
+    int near        =  0;                                // default near=0
+    int effort      =  1;                                // default effort=1
     int len         = -1;
     int in_is_nblic =  0;
     int in_is_bmp   =  0;
@@ -76,16 +78,13 @@ int main (int argc, char **argv) {
     p_dst_fname = argv[2];
     
     if (argc >= 4)
-        if ( sscanf(argv[3], "%d", &effort) <= 0 )
-            effort = MIN_EFFORT;
+        sscanf(argv[3], "%d", &effort);
     
     if (argc >= 5)
-        if ( sscanf(argv[4], "%d", &near) <= 0 )
-            near = 0;
+        sscanf(argv[4], "%d", &near);
     
     if (argc >= 6)
-        if (argv[5][0] == 'v')
-            verbose = 1;
+        verbose = (argv[5][0] == 'v') ? 1 : 0;
     
     printf("  input  file        = %s\n" , p_src_fname);
     printf("  output file        = %s\n" , p_dst_fname);
@@ -107,7 +106,12 @@ int main (int argc, char **argv) {
         printf("  input image shape  = %d x %d\n" , width, height );
         
         printf("\r    encoding ...");
-        len = NBLICcompress(verbose, buf, img, height, width, &near, &effort);
+        
+        if (near==0 && effort==0)
+            len = 2 * QNBLICcompress(buf, img, height, width);
+        else
+            len = NBLICcompress(verbose, (unsigned char*)buf, img, height, width, &near, &effort);
+        
         printf("\r                                                                        \r");
         
         if (len < 0) {
@@ -121,14 +125,14 @@ int main (int argc, char **argv) {
         printf("  compression rate   = %.5f\n"    , (1.0*width*height)/len );
         printf("  compression bpp    = %.5f\n"    , (8.0*len)/(width*height) );
         
-        if ( writeBytesToFile(p_dst_fname, buf, len) ) {
+        if ( writeBytesToFile(p_dst_fname, (unsigned char*)buf, len) ) {
             printf("  ***Error : write %s failed\n", p_dst_fname);
             return -1;
         }
         
     } else {                    // src file name ends with .nblic, decompress
         
-        len = loadBytesFromFile(p_src_fname, buf, NBLIC_MAX_IMG_SIZE*2);
+        len = loadBytesFromFile(p_src_fname, (unsigned char*)buf, sizeof(buf));
 
         if (len < 0) {
             printf("  ***Error : open %s failed\n", p_src_fname);
@@ -138,7 +142,14 @@ int main (int argc, char **argv) {
         printf("  input size         = %d B\n" , len );
         
         printf("\r    decoding ...");
-        len = NBLICdecompress(verbose, buf, img, &height, &width, &near, &effort);
+        
+        effort = 0;
+        near = 0;
+        len = QNBLICdecompress(buf, img, &height, &width);
+        
+        if (len < 0)
+            len = NBLICdecompress(verbose, (unsigned char*)buf, img, &height, &width, &near, &effort);
+        
         printf("\r                                                                        \r");
         
         if (len < 0) {

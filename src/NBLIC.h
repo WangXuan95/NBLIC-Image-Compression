@@ -26,13 +26,9 @@
 #define   __NBLIC_H__
 
 
-#define    NBLIC_MAX_HEIGHT    10240
-#define    NBLIC_MAX_WIDTH     10240
-#define    NBLIC_MAX_IMG_SIZE  (NBLIC_MAX_HEIGHT * NBLIC_MAX_WIDTH)
-
-#define    MIN_EFFORT          1
-#define    MAX_EFFORT          3
-
+#define    NBLIC_MAX_HEIGHT    65535
+#define    NBLIC_MAX_WIDTH     65535
+#define    NBLIC_MAX_IMG_SIZE  100000000
 
 
 // function  : NBLIC image compress
@@ -56,7 +52,6 @@
 //                  -1 : failed
 //
 extern int NBLICcompress   (int verbose, unsigned char *p_buf, unsigned char *p_img, int height, int width, int *p_near, int *p_effort);
-
 
 
 // function  : NBLIC image decompress

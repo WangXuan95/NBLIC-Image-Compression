@@ -4,6 +4,7 @@
 # python standard libraries importation
 import sys
 import os
+import time
 import subprocess as sp
 
 # python third-party libraries importation (additional installation is required, if you do not have)
@@ -23,19 +24,14 @@ CODEC_BIN_FILE = './nblic_codec'               # only for linux             #
 
 
 
-def callCodecWin (input_fname, output_fname, near=0) :
-    effort = '3'
+def callCodec (input_fname, output_fname, near=0) :
+    effort = 2
     
-    command = [CODEC_EXE_FILE, input_fname, output_fname, effort, str(near)]
-    p = sp.Popen(command, stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.PIPE)
-    return p.wait()
-
-
-
-def callCodecLinux (input_fname, output_fname, near=0) :
-    effort = '3'
+    if 1 :          # windows
+        command = [       CODEC_EXE_FILE, input_fname, output_fname, str(effort), str(near)]
+    else :          # linux (WSL, windows subsystem for linux)
+        command = ['wsl', CODEC_BIN_FILE, input_fname, output_fname, str(effort), str(near)]
     
-    command = ['wsl', CODEC_BIN_FILE, input_fname, output_fname, effort, str(near)]
     p = sp.Popen(command, stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.PIPE)
     return p.wait()
 
@@ -104,6 +100,8 @@ if __name__ == '__main__' :
     total_cmprs_size = [0] * len(near_list)
     
     
+    time_consume = time.time()
+    
     for fname in os.listdir(in_dir) :
         fname_full = in_dir + os.path.sep + fname
         
@@ -119,12 +117,12 @@ if __name__ == '__main__' :
         print('BPP of %s:' % fname , end='' , flush=True )
         
         for (i, near) in enumerate(near_list) :
-            if 0 != callCodecWin(TMP_RAW1_FILE, TMP_CMPRS_FILE, near) :
+            if 0 != callCodec(TMP_RAW1_FILE, TMP_CMPRS_FILE, near) :
                 print('\n*** %s encode error' % fname)
                 exit(-1)
             
             if check :
-                if 0 != callCodecWin(TMP_CMPRS_FILE, TMP_RAW2_FILE) :
+                if 0 != callCodec(TMP_CMPRS_FILE, TMP_RAW2_FILE) :
                     print('\n*** %s decode error' % fname)
                     exit(-1)
                 
@@ -145,6 +143,7 @@ if __name__ == '__main__' :
         if check :
             os.remove(TMP_RAW2_FILE)
     
+    time_consume = time.time() - time_consume
     
     print('BPP of all %d files:' % file_count , end='' , flush=True )
     
@@ -152,5 +151,5 @@ if __name__ == '__main__' :
         bpp = 8.0 * size / total_n_pixel
         print('     %.3f (near=%d)' % (bpp, near) , end='' , flush=True )
     
-    print()
+    print('\ntime = %f s' % time_consume)
 
