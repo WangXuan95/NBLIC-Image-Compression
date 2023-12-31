@@ -60,6 +60,21 @@ static int checkSize (int height, int width) {
 }
 
 
+#define    SAMPLE_CAUSAL_PIXELS_MOVE(p_img,width,i,j,x,a,b,c,d,e,f,g,h,q,r,s) { \
+    e = a; \
+    q = c; \
+    c = b; \
+    b = d; \
+    s = h; \
+    h = f; \
+    f = g; \
+    g = r; \
+    a = (int)G2D(p_img, width, i   , j-1);                                      \
+    d = (i<=0) ? a : (j+1>=width) ? d : (int)G2D(p_img, width, i-1 , j+1);      \
+    r = (i<=1) ? d : (j+2>=width) ? r : (int)G2D(p_img, width, i-2 , j+2);      \
+}
+
+
 static void initPTLookupTable (UI8 tab[]) {
     int i;
     for (i=0; i<1024; i++) {
@@ -504,13 +519,18 @@ int QNBLICcompress (uint16_t *p_buf, UI8 *p_img, int height, int width) {
     initPTLookupTable(tab_pt);
     
     for (i=0; i<height; i++) {
+        int a=0, b=0, c=0, d=0, e=0, f=0, g=0, h=0, q=0, r=0, s=0;
+        int x = 0;
         int err = 0;
         
         for (j=0; j<width; j++) {
-            int a, b, c, d, e, f, g, h, q, r, s;
-            int px, qd, adr, ctx, sign, x, y;
+            int px, qd, adr, ctx, sign, y;
             
-            SAMPLE_CAUSAL_PIXELS(p_img, width, i, j, a, b, c, d, e, f, g, h, q, r, s);
+            if (j == 0) {
+                SAMPLE_CAUSAL_PIXELS     (p_img, width, i, j, a, b, c, d, e, f, g, h, q, r, s);
+            } else {
+                SAMPLE_CAUSAL_PIXELS_MOVE(p_img, width, i, j, x, a, b, c, d, e, f, g, h, q, r, s);
+            }
             
             x = G2D(p_img, width, i, j);
             
@@ -611,13 +631,18 @@ int QNBLICdecompress (uint16_t *p_buf, UI8 *p_img, int *p_height, int *p_width) 
     ANS_DEC_START(ans, p_buf);
     
     for (i=0; i<height; i++) {
+        int a=0, b=0, c=0, d=0, e=0, f=0, g=0, h=0, q=0, r=0, s=0;
+        int x = 0;
         int err = 0;
         
         for (j=0; j<width; j++) {
-            int a, b, c, d, e, f, g, h, q, r, s;
-            int px0, px, qd, adr, ctx, sign, x, y;
+            int px0, px, qd, adr, ctx, sign, y;
             
-            SAMPLE_CAUSAL_PIXELS(p_img, width, i, j, a, b, c, d, e, f, g, h, q, r, s);
+            if (j == 0) {
+                SAMPLE_CAUSAL_PIXELS     (p_img, width, i, j, a, b, c, d, e, f, g, h, q, r, s);
+            } else {
+                SAMPLE_CAUSAL_PIXELS_MOVE(p_img, width, i, j, x, a, b, c, d, e, f, g, h, q, r, s);
+            }
             
             px0 = simplePredict(a, b, c, d, e, f, g, h, q, r, s, tab_pt);
             
