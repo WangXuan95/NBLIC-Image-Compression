@@ -31,7 +31,7 @@ The code files are in pure-C, located in the [src](./src) folder:
 | ------------ | ------------------------------------------------------------ |
 | NBLIC.c      | Implement NBLIC encoder/decoder                              |
 | NBLIC.h      | Expose the functions of NBLIC encoder/decoder to users.      |
-| QNBLIC.c     | Implement QNBLIC (Quicker NBLIC) encoder/decoder (for effort=0) |
+| QNBLIC.c     | Implement QNBLIC (Quicker NBLIC) encoder/decoder (for -e0)   |
 | QNBLIC.h     | Expose the functions of QNBLIC encoder/decoder to users.     |
 | FileIO.c     | Implement BMP and PGM image file reading/writing functions and binary file reading/writing functions. |
 | FileIO.h     | Expose the functions in FileIO.c to users.                   |
@@ -61,7 +61,7 @@ gcc src/*.c -o nblic_codec.exe -O3 -Wall
 
 We'll get the executable file `nblic_codec.exe` . Here I've compiled it for you, you can use it directly.
 
-> It is recommended to use the x64 compiler for compilation, as NBLIC performs a 64 bit integer calculation (int64_t in C) when effort>=2. If using a 32-bit x86 compiler, it will result in slower compression/decompression speed.
+> It is recommended to use the x64 compiler for compilation, as NBLIC performs a 64 bit integer calculation (int64_t in C) when using -e2 and -e3. If using a 32-bit x86 compiler, it will result in slower compression/decompression speed.
 
 　
 
@@ -71,46 +71,61 @@ This program can compress gray BMP/PNM/PGM image file to NBLIC file (.nblic), or
 
 Note: BMP, PNM, and PGM [2] are all image files without compression (i.e., they saves raw pixels).
 
-### Compress
-
-In Linux, Use following command to compress a BMP/PNM/PGM file to a NBLIC file.
+### To compress:
 
 ```bash
-./nblic_codec  <input-image-file>  <output-file(.nblic)>  [<effort>]  [<near>]
+   nblic_codec -c [-swiches] <input-image-file> <output-file(.nblic)>       
+     where:                                                                 
+            <input-image-file> can be .pgm, .pnm, or .bmp                   
+                               and must be gray 8-bit image                 
+            <output-file>      can only be .nblic                           
+     swiches:                                                               
+            -n<number> : near, can be 0 (lossless) or 1,2,3,... (lossy)     
+            -e<number> : effort, can be 0 (fastest), 1 (normal), 2 (slow), or 3 (slowest)
+                         note: when using lossy (near>0), effort cannot be 0 
+            -v         : verbose, print infomations                         
+            -V         : verbose, print infomations and progress            
 ```
 
-Where:
+For example :
 
-- `input-image-file` can ends with `.pgm` , `.pnm` , or `.bmp`
-- `output-file` can only ends with `.nblic`
-- `effort` can be 0 (fastest), 1, 2, or 3 (deepest)
-- `near` can be 0 (lossless) or 1,2,3,... (lossy)
-- Note: when using lossy (near>0), effort cannot be 0
+fastest lossless compression:
+
+```bash
+./nblic_codec -c -V -n0 -e0 in.bmp out.nblic
+```
+
+slowest lossless compression:
+
+```bash
+./nblic_codec -c -V -n0 -e3 in.bmp out.nblic
+```
+
+slow lossy compression:
+
+```bash
+./nblic_codec -c -V -n2 -e2 in.bmp out.nblic
+```
+
+### To decompress
+
+```bash
+   nblic_codec -d <input-file(.nblic)> <output-image-file>                  
+     where:                                                                 
+            <input-file>        can only be .nblic                          
+            <output-image-file> can be .pgm, .pnm, or .bmp                  
+     swiches:                                                               
+            -v         : verbose, print infomations                         
+            -V         : verbose, print infomations and progress        
+```
 
 For example:
 
 ```bash
-./nblic_codec img_kodak/01.bmp out.nblic 3 0
+./nblic_codec -d -V in.nblic out.bmp
 ```
 
-### Decompress
-
-In Linux, Use following command to decompress a NBLIC file to a BMP/PNM/PGM file.
-
-```bash
-./nblic_codec  <input-file(.nblic)>  <output-image-file>
-```
-
-Where:
-
-- `input-file` can only ends with `.nblic`
-- `output-image-file` can only ends with `.pgm` , `.pnm` , or `.bmp`
-
-For example:
-
-```bash
-./nblic_codec out.nblic out.bmp
-```
+　
 
 ### Run in Windows
 
@@ -158,16 +173,16 @@ I try to use the "slowest but deepest compression" configuration for all these f
 
 Note that since I use Python's pillow library to encode/decode some formats, some of the following instructions are in the Python language.
 
-|        Format        |   In Which?   | Encode Command / Arguments                             |
-| :------------------: | :-----------: | :----------------------------------------------------- |
-|         PNG          |  Windows CMD  | `optipng.exe -o7 a.pgm -out a.png`                     |
-|    AVIF lossless     |    Python     | `img.save('a.avif', quality=-1)`                       |
-|  JPEG2000 lossless   |    Python     | `img.save('a.j2k', irreversible=False)`                |
-|       JPEG-LS        |    Python     | `img.save('a.jls', spiff=None)`                        |
-|    WEBP lossless     |    Python     | `img.save('a.webp', lossless=True, method=6)`          |
-|        CALIC         |  Windows CMD  | `calic8e.exe a.raw <width> <height> <depth> 0 a.calic` |
-|    JPEG-XL (FLIF)    | Linux command | `./flif -e -N -E100 a.pgm a.flif`                      |
-| **NBLIC** (effort=?) |  Windows CMD  | `nblic_codec.exe a.pgm a.nblic ? 0`                    |
+|      Format       |   In Which?   | Encode Command / Arguments                             |
+| :---------------: | :-----------: | :----------------------------------------------------- |
+|        PNG        |  Windows CMD  | `optipng.exe -o7 a.pgm -out a.png`                     |
+|   AVIF lossless   |    Python     | `img.save('a.avif', quality=-1)`                       |
+| JPEG2000 lossless |    Python     | `img.save('a.j2k', irreversible=False)`                |
+|      JPEG-LS      |    Python     | `img.save('a.jls', spiff=None)`                        |
+|   WEBP lossless   |    Python     | `img.save('a.webp', lossless=True, method=6)`          |
+|       CALIC       |  Windows CMD  | `calic8e.exe a.raw <width> <height> <depth> 0 a.calic` |
+|  JPEG-XL (FLIF)   | Linux command | `./flif -e -N -E100 a.pgm a.flif`                      |
+|  **NBLIC** (-e?)  |  Windows CMD  | `nblic_codec.exe -c -V -n0 -e? a.pgm a.nblic`          |
 
 　
 
@@ -184,7 +199,7 @@ Decoding commands are simple, as shown in following table.
 |   WEBP lossless   |    Python     | `numpy.asarray(Image.open('a.webp'))` |
 |       CALIC       |  Windows CMD  | `calic8d.exe a.calic a.raw`           |
 |  JPEG-XL (FLIF)   | Linux command | `./flif -d a.flif a.pgm`              |
-|     **NBLIC**     |  Windows CMD  | `nblic_codec.exe a.nblic a.pgm`       |
+|     **NBLIC**     |  Windows CMD  | `nblic_codec.exe -d -V a.nblic a.pgm` |
 
 　
 
@@ -227,10 +242,10 @@ I use the following four image datasets for comparison.
 |          WEBP          |     4.190      |       100.9       |         0.3         |
 |         CALIC          |     4.278      |       11.9        |        11.2         |
 |     JPEG-XL (FLIF)     |     4.158      |       13.4        |         4.4         |
-|  **NBLIC** (effort=0)  |   **4.378**    |        1.1        |         2.0         |
-|  **NBLIC** (effort=1)  |   **4.157**    |        3.4        |         3.4         |
-|  **NBLIC** (effort=2)  |   **4.116**    |       10.7        |        11.0         |
-|  **NBLIC** (effort=3)  |   **4.105**    |       29.8        |        30.0         |
+|    **NBLIC** (-e0)     |   **4.378**    |        1.1        |         2.0         |
+|    **NBLIC** (-e1)     |   **4.157**    |        3.4        |         3.4         |
+|    **NBLIC** (-e2)     |   **4.116**    |       10.7        |        11.0         |
+|    **NBLIC** (-e3)     |   **4.105**    |       29.8        |        30.0         |
 
 　
 
@@ -245,10 +260,10 @@ I use the following four image datasets for comparison.
 |          WEBP          |     4.332      |       118.6       |         0.3         |
 |         CALIC          |     4.181      |        8.1        |         7.6         |
 |     JPEG-XL (FLIF)     |     4.293      |       10.0        |         3.1         |
-|  **NBLIC** (effort=0)  |   **4.229**    |        1.3        |         2.8         |
-|  **NBLIC** (effort=1)  |   **4.146**    |        2.6        |         2.7         |
-|  **NBLIC** (effort=2)  |   **4.088**    |       10.1        |        10.3         |
-|  **NBLIC** (effort=3)  |   **4.066**    |       29.2        |        29.3         |
+|    **NBLIC** (-e0)     |   **4.229**    |        1.3        |         2.8         |
+|    **NBLIC** (-e1)     |   **4.146**    |        2.6        |         2.7         |
+|    **NBLIC** (-e2)     |   **4.088**    |       10.1        |        10.3         |
+|    **NBLIC** (-e3)     |   **4.066**    |       29.2        |        29.3         |
 
 　
 
@@ -263,10 +278,10 @@ I use the following four image datasets for comparison.
 |          WEBP          |     3.253      |       448.1       |         1.5         |
 |         CALIC          |     3.012      |       95.0        |        56.3         |
 |     JPEG-XL (FLIF)     |     3.050      |       94.1        |        14.7         |
-|  **NBLIC** (effort=0)  |   **3.058**    |        4.3        |         6.5         |
-|  **NBLIC** (effort=1)  |   **3.027**    |       11.2        |        11.8         |
-|  **NBLIC** (effort=2)  |   **2.981**    |       83.0        |        83.7         |
-|  **NBLIC** (effort=3)  |   **2.963**    |       261.4       |        263.8        |
+|    **NBLIC** (-e0)     |   **3.058**    |        4.3        |         6.5         |
+|    **NBLIC** (-e1)     |   **3.027**    |       11.2        |        11.8         |
+|    **NBLIC** (-e2)     |   **2.981**    |       83.0        |        83.7         |
+|    **NBLIC** (-e3)     |   **2.963**    |       261.4       |        263.8        |
 
 　
 
@@ -281,10 +296,10 @@ I use the following four image datasets for comparison.
 |          WEBP          |     3.395      |       887.9       |         2.8         |
 |         CALIC          |     3.255      |       33.9        |        33.1         |
 |     JPEG-XL (FLIF)     |     3.159      |       186.5       |        28.3         |
-|  **NBLIC** (effort=0)  |   **3.259**    |        6.2        |         6.5         |
-|  **NBLIC** (effort=1)  |   **3.236**    |       17.0        |        18.2         |
-|  **NBLIC** (effort=2)  |   **3.012**    |       142.9       |        144.2        |
-|  **NBLIC** (effort=3)  |   **2.987**    |       455.4       |        462.1        |
+|    **NBLIC** (-e0)     |   **3.259**    |        6.2        |         6.5         |
+|    **NBLIC** (-e1)     |   **3.236**    |       17.0        |        18.2         |
+|    **NBLIC** (-e2)     |   **3.012**    |       142.9       |        144.2        |
+|    **NBLIC** (-e3)     |   **2.987**    |       455.4       |        462.1        |
 
 　
 

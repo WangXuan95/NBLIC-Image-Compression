@@ -5,7 +5,6 @@
 import sys
 import os
 import time
-import subprocess as sp
 
 # python third-party libraries importation (additional installation is required, if you do not have)
 import numpy as np
@@ -24,16 +23,17 @@ CODEC_BIN_FILE = './nblic_codec'               # only for linux             #
 
 
 
-def callCodec (input_fname, output_fname, near=0) :
+def callCodec (input_fname, output_fname, decompress, near=0) :
     effort = 2
     
-    if 1 :          # windows
-        command = [       CODEC_EXE_FILE, input_fname, output_fname, str(effort), str(near)]
-    else :          # linux (WSL, windows subsystem for linux)
-        command = ['wsl', CODEC_BIN_FILE, input_fname, output_fname, str(effort), str(near)]
+    mode = '-d' if (decompress) else '-c'
     
-    p = sp.Popen(command, stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.PIPE)
-    return p.wait()
+    if 1 :          # windows
+        command = CODEC_EXE_FILE + ' ' + mode + ' ' + '-e'+str(effort) + ' ' + '-n'+str(near) + ' ' + input_fname + ' ' + output_fname
+    else :          # linux (WSL, windows subsystem for linux)
+        command = 'wsl ' + CODEC_BIN_FILE + ' ' + mode + ' ' + '-e'+str(effort) + ' ' + '-n'+str(near) + ' ' + input_fname + ' ' + output_fname
+    
+    return os.system(command)
 
 
 
@@ -117,12 +117,12 @@ if __name__ == '__main__' :
         print('BPP of %s:' % fname , end='' , flush=True )
         
         for (i, near) in enumerate(near_list) :
-            if 0 != callCodec(TMP_RAW1_FILE, TMP_CMPRS_FILE, near) :
+            if 0 != callCodec(TMP_RAW1_FILE, TMP_CMPRS_FILE, 0, near) :
                 print('\n*** %s encode error' % fname)
                 exit(-1)
             
             if check :
-                if 0 != callCodec(TMP_CMPRS_FILE, TMP_RAW2_FILE) :
+                if 0 != callCodec(TMP_CMPRS_FILE, TMP_RAW2_FILE, 1) :
                     print('\n*** %s decode error' % fname)
                     exit(-1)
                 
