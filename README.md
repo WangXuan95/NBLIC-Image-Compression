@@ -1,8 +1,10 @@
  ![language](https://img.shields.io/badge/language-C-green.svg) ![build](https://img.shields.io/badge/build-Windows-blue.svg) ![build](https://img.shields.io/badge/build-linux-FF1010.svg)
 
-# NBLIC: lossless image compression
+# NBLIC: New Bee Lossless Image Compression
 
-NBLIC (New Bee Lossless Image Compression) is a lossless & near-lossless gray image codec.
+NBLIC is a lossless & near-lossless gray 8-bit image compression algorithm with high compression ratio.
+
+see [Here](#Comparison) and [Gray 8-bit Lossless Compression Bench](http://home.ustc.edu.cn/~wgg/gray8_LPCB.html) for comparison to other image formats.
 
 ### Features
 
@@ -123,6 +125,8 @@ In Windows, just use `.\nblic_codec.exe` instead of `./nblic_codec` .
 # Comparison
 
 This section presents the results of comparing **NBLIC** (this design) to other lossless image compression formats.
+
+*Note: for more comparison result, see [Gray 8-bit Lossless Compression Bench](http://home.ustc.edu.cn/~wgg/gray8_LPCB.html).*
 
 ## Formats for participating in comparison
 
