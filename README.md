@@ -8,7 +8,7 @@ see [Here](#Comparison) and [Gray 8-bit Lossless Compression Bench](http://home.
 
 ### Features
 
-- **High compression ratio**, significantly higher than state-of-the-art lossless image compression standards such as JPEG-XL lossless, AVIF lossless, and maybe WebP2 lossless (will be compared in future).
+- **High compression ratio** for photos
 - **Low code** (only 1000 lines of C language of encoder and decoder).
 - Just single pass scan encode/decode, friendly for FPGA hardware streaming implementation.
 
@@ -74,17 +74,16 @@ Note: BMP, PNM, and PGM [2] are all image files without compression (i.e., they 
 ### To compress:
 
 ```bash
-   nblic_codec -c [-swiches] <input-image-file> <output-file(.nblic)>       
-     where:                                                                 
-            <input-image-file> can be .pgm, .pnm, or .bmp                   
-                               and must be gray 8-bit image                 
-            <output-file>      can only be .nblic                           
-     swiches:                                                               
-            -n<number> : near, can be 0 (lossless) or 1,2,3,... (lossy)     
-            -e<number> : effort, can be 0 (fastest), 1 (normal), 2 (slow), or 3 (slowest)
-                         note: when using lossy (near>0), effort cannot be 0 
-            -v         : verbose, print infomations                         
-            -V         : verbose, print infomations and progress            
+nblic_codec -c [-swiches] <input-image-file> <output-file(.nblic)>
+  where:
+    <input-image-file> can be .pgm, .pnm, or .bmp (must be gray 8-bit image)
+    <output-file> can only be .nblic
+  swiches:
+    -n<number> : near, can be 0 (lossless) or 1,2,3,... (lossy)
+    -e<number> : effort, can be 0 (fastest), 1 (normal), 2 (slow), or 3 (slowest)
+                 note: when using lossy (near>0), effort cannot be 0
+    -v         : verbose, print infomations
+    -V         : verbose, print infomations and progress
 ```
 
 For example :
@@ -110,13 +109,13 @@ slow lossy compression:
 ### To decompress
 
 ```bash
-   nblic_codec -d <input-file(.nblic)> <output-image-file>                  
-     where:                                                                 
-            <input-file>        can only be .nblic                          
-            <output-image-file> can be .pgm, .pnm, or .bmp                  
-     swiches:                                                               
-            -v         : verbose, print infomations                         
-            -V         : verbose, print infomations and progress        
+nblic_codec -d [-swiches] <input-file(.nblic)> <output-image-file>
+  where:
+    <input-file> can only be .nblic
+    <output-image-file> can be .pgm, .pnm, or .bmp
+  swiches:
+    -v : verbose, print infomations
+    -V : verbose, print infomations and progress
 ```
 
 For example:
@@ -156,12 +155,11 @@ The following table shows the image formats involved in the comparison.
 |     WEBP lossless      |          Python pillow 9.5.0 [4]          |
 |    WEBP2 lossless *    |                     ???                     |
 |              CALIC [6]              | CALIC executable file [7] |
-| JPEG-XL lossless* [5]  |                 FLIF [5]                  |
+| JPEG-XL lossless  |                 libjxl (v0.9.0) [5]                 |
 |              **NBLIC**              |       **This repo**       |
 
 > \* I would like to add WEBP2 in comparison in the future, but I currently do not have it, since it is too new to obtain.
 >
-> \* **JPEG-XL lossless (also called FLIF)** is the state-of-the-art lossless image compression standard by 2023. WebP2 lossless may be on par with JPEG-XL.
 
 　
 
@@ -173,16 +171,16 @@ I try to use the "slowest but deepest compression" configuration for all these f
 
 Note that since I use Python's pillow library to encode/decode some formats, some of the following instructions are in the Python language.
 
-|      Format       |   In Which?   | Encode Command / Arguments                             |
-| :---------------: | :-----------: | :----------------------------------------------------- |
-|        PNG        |  Windows CMD  | `optipng.exe -o7 a.pgm -out a.png`                     |
-|   AVIF lossless   |    Python     | `img.save('a.avif', quality=-1)`                       |
-| JPEG2000 lossless |    Python     | `img.save('a.j2k', irreversible=False)`                |
-|      JPEG-LS      |    Python     | `img.save('a.jls', spiff=None)`                        |
-|   WEBP lossless   |    Python     | `img.save('a.webp', lossless=True, method=6)`          |
-|       CALIC       |  Windows CMD  | `calic8e.exe a.raw <width> <height> <depth> 0 a.calic` |
-|  JPEG-XL (FLIF)   | Linux command | `./flif -e -N -E100 a.pgm a.flif`                      |
-|  **NBLIC** (-e?)  |  Windows CMD  | `nblic_codec.exe -c -V -n0 -e? a.pgm a.nblic`          |
+|      Format       |  In Which?  | Encode Command / Arguments                             |
+| :---------------: | :---------: | :----------------------------------------------------- |
+|        PNG        | Windows CMD | `optipng.exe -o7 a.pgm -out a.png`                     |
+|   AVIF lossless   |   Python    | `img.save('a.avif', quality=-1)`                       |
+| JPEG2000 lossless |   Python    | `img.save('a.j2k', irreversible=False)`                |
+|      JPEG-LS      |   Python    | `img.save('a.jls', spiff=None)`                        |
+|   WEBP lossless   |   Python    | `img.save('a.webp', lossless=True, method=6)`          |
+|       CALIC       | Windows CMD | `calic8e.exe a.raw <width> <height> <depth> 0 a.calic` |
+|      JPEG-XL      | Windows CMD | `cjxl.exe a.pgm a.jxl -q 100 -e 9`                     |
+|  **NBLIC** (-e?)  | Windows CMD | `nblic_codec.exe -c -V -n0 -e? a.pgm a.nblic`          |
 
 　
 
@@ -190,16 +188,16 @@ Note that since I use Python's pillow library to encode/decode some formats, som
 
 Decoding commands are simple, as shown in following table.
 
-|      Format       |   In Which?   | Decode Command / Arguments            |
-| :---------------: | :-----------: | :------------------------------------ |
-|        PNG        |    Python     | `numpy.asarray(Image.open('a.png'))`  |
-|   AVIF lossless   |    Python     | `numpy.asarray(Image.open('a.avif'))` |
-| JPEG2000 lossless |    Python     | `numpy.asarray(Image.open('a.j2k'))`  |
-|      JPEG-LS      |    Python     | `numpy.asarray(Image.open('a.jls'))`  |
-|   WEBP lossless   |    Python     | `numpy.asarray(Image.open('a.webp'))` |
-|       CALIC       |  Windows CMD  | `calic8d.exe a.calic a.raw`           |
-|  JPEG-XL (FLIF)   | Linux command | `./flif -d a.flif a.pgm`              |
-|     **NBLIC**     |  Windows CMD  | `nblic_codec.exe -d -V a.nblic a.pgm` |
+|      Format       |  In Which?  | Decode Command / Arguments            |
+| :---------------: | :---------: | :------------------------------------ |
+|        PNG        |   Python    | `numpy.asarray(Image.open('a.png'))`  |
+|   AVIF lossless   |   Python    | `numpy.asarray(Image.open('a.avif'))` |
+| JPEG2000 lossless |   Python    | `numpy.asarray(Image.open('a.j2k'))`  |
+|      JPEG-LS      |   Python    | `numpy.asarray(Image.open('a.jls'))`  |
+|   WEBP lossless   |   Python    | `numpy.asarray(Image.open('a.webp'))` |
+|       CALIC       | Windows CMD | `calic8d.exe a.calic a.raw`           |
+|      JPEG-XL      | Windows CMD | `djxl.exe a.jxl a.pgm`                |
+|     **NBLIC**     | Windows CMD | `nblic_codec.exe -d -V a.nblic a.pgm` |
 
 　
 
@@ -221,35 +219,17 @@ All encoders/decoders are run on my laptop (Windows 10, Intel Core i7-12700H, 16
 
 I use the following four image datasets for comparison.
 
-|             |                          benckmark1                          |                     benchmark2                     |                          benchmark3                          |                          benchmark4                          |
-| :---------: | :----------------------------------------------------------: | :------------------------------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------: |
-| source from | [USC-SIPI](https://sipi.usc.edu/database/database.php?volume=misc) [13] | [Kodak Image](https://r0k.us/graphics/kodak/) [11] | [CLIC'24 test set](https://www.compression.cc/tasks/#image) [14] | [Gray 8 bit](https://imagecompression.info/test_images/) [12] |
-| preprocess  |                     convert to gray8bit                      |                convert to gray8bit                 |                     convert to gray8bit                      |                           needn't                            |
-| image count |                              39                              |                         24                         |                              32                              |                              15                              |
-| total bytes |                          9,830,991                           |                     9,437,544                      |                          88,605,214                          |                         162,870,743                          |
-|    notes    |                                                              |       [img_kodak](./img_kodak) in this repo        |                                                              |                                                              |
+|             |                     benchmark1                     |                          benchmark2                          |                          benchmark3                          |
+| :---------: | :------------------------------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------: |
+| source from | [Kodak Image](https://r0k.us/graphics/kodak/) [11] | [CLIC'24 test set](https://www.compression.cc/tasks/#image) [14] | [Gray 8 bit](https://imagecompression.info/test_images/) [12] |
+| preprocess  |                convert to gray8bit                 |                     convert to gray8bit                      |                           needn't                            |
+| image count |                         24                         |                              32                              |                              15                              |
+| total bytes |                     9,437,544                      |                          88,605,214                          |                         162,870,743                          |
+|    notes    |       [img_kodak](./img_kodak) in this repo        |                                                              |                                                              |
 
 　
 
 ## Results on benchmark1
-
-|         Format         | compressed BPP | compress time (s) | decompress time (s) |
-| :--------------------: | :------------: | :---------------: | :-----------------: |
-|          PNG           |     4.537      |       109.1       |         0.1         |
-|   AVIF (not deepest)   |     4.701      |        3.4        |         1.0         |
-| JPEG2000 (not deepest) |     4.584      |        1.3        |         1.0         |
-|        JPEG-LS         |     4.425      |        0.7        |         0.7         |
-|          WEBP          |     4.190      |       100.9       |         0.3         |
-|         CALIC          |     4.278      |       11.9        |        11.2         |
-|     JPEG-XL (FLIF)     |     4.158      |       13.4        |         4.4         |
-|    **NBLIC** (-e0)     |   **4.378**    |        1.1        |         2.0         |
-|    **NBLIC** (-e1)     |   **4.157**    |        3.4        |         3.4         |
-|    **NBLIC** (-e2)     |   **4.116**    |       10.7        |        11.0         |
-|    **NBLIC** (-e3)     |   **4.105**    |       29.8        |        30.0         |
-
-　
-
-## Results on benchmark2
 
 |         Format         | compressed BPP | compress time (s) | decompress time (s) |
 | :--------------------: | :------------: | :---------------: | :-----------------: |
@@ -259,15 +239,15 @@ I use the following four image datasets for comparison.
 |        JPEG-LS         |     4.338      |        0.5        |         0.5         |
 |          WEBP          |     4.332      |       118.6       |         0.3         |
 |         CALIC          |     4.181      |        8.1        |         7.6         |
-|     JPEG-XL (FLIF)     |     4.293      |       10.0        |         3.1         |
-|    **NBLIC** (-e0)     |   **4.229**    |        1.3        |         2.8         |
+|        JPEG-XL         |     4.143      |       77.1        |         1.1         |
+|    **NBLIC** (-e0)     |   **4.227**    |        1.0        |         2.8         |
 |    **NBLIC** (-e1)     |   **4.146**    |        2.6        |         2.7         |
 |    **NBLIC** (-e2)     |   **4.088**    |       10.1        |        10.3         |
 |    **NBLIC** (-e3)     |   **4.066**    |       29.2        |        29.3         |
 
 　
 
-## Results on benchmark3
+## Results on benchmark2
 
 |         Format         | compressed BPP | compress time (s) | decompress time (s) |
 | :--------------------: | :------------: | :---------------: | :-----------------: |
@@ -277,15 +257,15 @@ I use the following four image datasets for comparison.
 |        JPEG-LS         |     3.185      |        2.5        |         2.4         |
 |          WEBP          |     3.253      |       448.1       |         1.5         |
 |         CALIC          |     3.012      |       95.0        |        56.3         |
-|     JPEG-XL (FLIF)     |     3.050      |       94.1        |        14.7         |
-|    **NBLIC** (-e0)     |   **3.058**    |        4.3        |         6.5         |
+|        JPEG-XL         |     2.958      |       641.8       |         2.1         |
+|    **NBLIC** (-e0)     |   **3.056**    |        2.6        |         6.2         |
 |    **NBLIC** (-e1)     |   **3.027**    |       11.2        |        11.8         |
 |    **NBLIC** (-e2)     |   **2.981**    |       83.0        |        83.7         |
 |    **NBLIC** (-e3)     |   **2.963**    |       261.4       |        263.8        |
 
 　
 
-## Results on benchmark4
+## Results on benchmark3
 
 |         Format         | compressed BPP | compress time (s) | decompress time (s) |
 | :--------------------: | :------------: | :---------------: | :-----------------: |
@@ -295,8 +275,8 @@ I use the following four image datasets for comparison.
 |        JPEG-LS         |     3.429      |        4.9        |         4.1         |
 |          WEBP          |     3.395      |       887.9       |         2.8         |
 |         CALIC          |     3.255      |       33.9        |        33.1         |
-|     JPEG-XL (FLIF)     |     3.159      |       186.5       |        28.3         |
-|    **NBLIC** (-e0)     |   **3.259**    |        6.2        |         6.5         |
+|        JPEG-XL         |     3.085      |      1357.4       |         2.4         |
+|    **NBLIC** (-e0)     |   **3.259**    |        3.2        |         6.5         |
 |    **NBLIC** (-e1)     |   **3.236**    |       17.0        |        18.2         |
 |    **NBLIC** (-e2)     |   **3.012**    |       142.9       |        144.2        |
 |    **NBLIC** (-e3)     |   **2.987**    |       455.4       |        462.1        |
@@ -317,7 +297,7 @@ I use the following four image datasets for comparison.
 
 [4] Python Pillow Supported Image file formats : https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html
 
-[5] FLIF: Free Lossless Image Format : https://github.com/FLIF-hub/FLIF
+[5] libjxl : https://github.com/libjxl/libjxl/releases
 
 [6] CALIC paper: Context-based, adaptive, lossless image coding : https://ieeexplore.ieee.org/document/585919/
 

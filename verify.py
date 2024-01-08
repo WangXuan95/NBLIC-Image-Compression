@@ -23,12 +23,12 @@ CODEC_BIN_FILE = './nblic_codec'               # only for linux             #
 
 
 
-def callCodec (input_fname, output_fname, decompress, near=0) :
-    effort = 2
+def callCodec (input_fname, output_fname, decompress, near=0, windows=1) :
+    effort = 0
     
     mode = '-d' if (decompress) else '-c'
     
-    if 1 :          # windows
+    if windows :    # windows
         command = CODEC_EXE_FILE + ' ' + mode + ' ' + '-e'+str(effort) + ' ' + '-n'+str(near) + ' ' + input_fname + ' ' + output_fname
     else :          # linux (WSL, windows subsystem for linux)
         command = 'wsl ' + CODEC_BIN_FILE + ' ' + mode + ' ' + '-e'+str(effort) + ' ' + '-n'+str(near) + ' ' + input_fname + ' ' + output_fname

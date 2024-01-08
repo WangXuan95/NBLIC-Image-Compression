@@ -6,6 +6,8 @@
 typedef    unsigned char          UI8;
 
 
+#define    ENABLE_MULTITHREAD     1
+
 #define    ABS(x)                 ( ((x)<0) ? (-(x)) : (x) )                             // get absolute value
 #define    CLIP(x,a,b)            ( ((x)<(a)) ? (a) : (((x)>(b)) ? (b) : (x)) )          // clip x between a~b
 #define    MIN(a,b)               ( ((a)<(b)) ? (a) : (b) )
@@ -21,7 +23,7 @@ typedef    unsigned char          UI8;
 #define    N_CONTEXT              (N_QD * 256)
 
 #define    CTX_COEF               7
-#define    CTX_SCALE              8
+#define    CTX_SCALE              11
 
     
 
@@ -41,7 +43,7 @@ static int checkSize (int height, int width) {
 }
 
 
-#define    SAMPLE_CAUSAL_PIXELS(p_img,width,i,j,a,b,c,d,e,f,g,h,q,r,s) {   \
+#define    SAMPLE_PIXELS(p_img,width,i,j,a,b,c,d,e,f,g,h,q,r,s) {          \
     a = (int)SPIX(p_img, width, i   , j-1 , MID_VAL);                      \
     b = (int)SPIX(p_img, width, i-1 , j   , MID_VAL);                      \
     if      (i == 0)                                                       \
@@ -60,8 +62,9 @@ static int checkSize (int height, int width) {
 }
 
 
-#define    SAMPLE_CAUSAL_PIXELS_MOVE(p_img,width,i,j,x,a,b,c,d,e,f,g,h,q,r,s) { \
+#define    SAMPLE_PIXELS_NEXT(p_img,width,i,j,x,a,b,c,d,e,f,g,h,q,r,s) {   \
     e = a; \
+    a = x; \
     q = c; \
     c = b; \
     b = d; \
@@ -69,15 +72,14 @@ static int checkSize (int height, int width) {
     h = f; \
     f = g; \
     g = r; \
-    a = (int)G2D(p_img, width, i   , j-1);                                      \
-    d = (i<=0) ? a : (j+1>=width) ? d : (int)G2D(p_img, width, i-1 , j+1);      \
-    r = (i<=1) ? d : (j+2>=width) ? r : (int)G2D(p_img, width, i-2 , j+2);      \
+    d = (i<=0) ? a : (j+2>=width) ? d : (int)G2D(p_img, width, i-1 , j+2); \
+    r = (i<=1) ? d : (j+3>=width) ? r : (int)G2D(p_img, width, i-2 , j+3); \
 }
 
 
 static void initPTLookupTable (UI8 tab[]) {
     int i;
-    for (i=0; i<1024; i++) {
+    for (i=0; i<608; i++) {
         if      (i <= 4  ) tab[i] = 0;
         else if (i <= 11 ) tab[i] = 1;
         else if (i <= 33 ) tab[i] = 2;
@@ -91,16 +93,12 @@ static void initPTLookupTable (UI8 tab[]) {
 
 
 static int simplePredict (int a, int b, int c, int d, int e, int f, int g, int h, int q, int r, int s, UI8 tab[]) {
-    int px_lnr, px_ang=0, cost, csum=0, cmin=0xFFFFFF, wt;
+    int px_lnr, px_ang, cost, csum, cmin, wt;
     
     px_lnr = CLIP((9*a + 9*b + (d<<1) - (c<<1) - e - f), 0, 16*MAX_VAL);
     
-    cost = 2 * (ABS(a-e) + ABS(c-q) + ABS(b-c) + ABS(d-b));
-    csum += cost;
-    if (cmin > cost) {
-        cmin = cost;
-        px_ang = 2 * a;
-    }
+    cmin = csum = 2 * (ABS(a-e) + ABS(c-q) + ABS(b-c) + ABS(d-b));
+    px_ang = 2 * a;
     
     cost = 2 * (ABS(a-c) + ABS(c-h) + ABS(b-f) + ABS(d-g));
     csum += cost;
@@ -145,7 +143,7 @@ static int simplePredict (int a, int b, int c, int d, int e, int f, int g, int h
     }
     
     csum -= (7 * cmin);
-    csum = MIN((csum>>3), 1023);
+    csum = MIN((csum>>3), 608-1);
     wt = tab[csum];
     
     return ((8*wt*px_ang + (8-wt)*px_lnr + 64) >> 7);
@@ -154,7 +152,7 @@ static int simplePredict (int a, int b, int c, int d, int e, int f, int g, int h
 
 static void initQDLookupTable (UI8 tab_qd[]) {
     int i;
-    for (i=0; i<2048; i++) {
+    for (i=0; i<152; i++) {
         if      (i <= 0  ) tab_qd[i] = 0;
         else if (i <= 1  ) tab_qd[i] = 1;
         else if (i <= 3  ) tab_qd[i] = 2;
@@ -183,7 +181,7 @@ static void initQDLookupTable (UI8 tab_qd[]) {
 }
 
 
-#define  CORRECT_PX(ctx,px,px0,sign)  {                \
+#define  CORRECT_PX(ctx,px0,px,sign)  {                \
     sign = ((ctx) >> (CTX_SCALE-1)) & 1;               \
     px   = px0 + ((ctx) >> CTX_SCALE) + sign;          \
     px   = CLIP(px, 0, MAX_VAL);                       \
@@ -263,7 +261,7 @@ static void normHist (uint32_t hist[]) {
     uint32_t i, j=0;
     uint32_t sum      = 0;
     uint32_t nz_count = 0;
-    double   scale;
+    double   scale;  // this func is only used in encoder, so using floating-point types here will not result in images being unable to be decoded across platforms
     
     for (i=0; i<=ANS_MVAL; i++) {
         if (hist[i] > 0) {
@@ -380,10 +378,11 @@ static void reverseWords (uint16_t *p_start, uint16_t *p_end) {
 //         |  a 16-bit code   | explain                                                      |
 //   case1 | 0AAAAAAAAAAAAAAA | where AAAAAAAAAAAAAAA is a 15-bit histogram value            |
 //   case2 | 10BBBBBBBCCCCCCC | where BBBBBBB and CCCCCCC are two 7-bit histogram values     |
-//   case3 | 1111DDDDEEEEFFFF | where DDDD, EEEE, and FFFF are three 4-bit histogram values  |
-//   case4 | 11XXKKKKRRRRRRRR | repeat XX for (RRRRRRRR+4) times (XX is 0,1 or 2),
+//   case3 | 1100DDDDEEEEFFFF | where DDDD, EEEE, and FFFF are three 4-bit histogram values  |
+//   case4 | 1101GGGHHHIIIJJJ | where GGG, HHH, III, and JJJ are four 3-bit histogram values |
+//   case5 | 111XKKKKRRRRRRRR | repeat X for (RRRRRRRR+4) times (X is 0 or 1),
 //                              and follows a 4-bit value KKKK   
-//                              if KKKK==XX, KKKK should be ignored                          |
+//                              if KKKK==X, KKKK should be ignored                           |
 static void decodeHist (uint16_t **pp_buf, uint32_t hist[]) {
     uint32_t i, sum=0;
     
@@ -398,16 +397,21 @@ static void decodeHist (uint16_t **pp_buf, uint32_t hist[]) {
         if        ((code>>15) == 0) {
             sum += ( hist[i++] = code );
         } else if ((code>>14) == 2) {
-            sum += ( hist[i++] = (0x7F & (code>>7) ) );
-            sum += ( hist[i++] = (0x7F & (code   ) ) );
-        } else if ((code>>12) == 15) {
+            sum += ( hist[i++] = (0x7F& (code>>7) ) );
+            sum += ( hist[i++] = (0x7F& (code   ) ) );
+        } else if ((code>>12) == 12) {
             sum += ( hist[i++] = (0xF & (code>>8) ) );
             sum += ( hist[i++] = (0xF & (code>>4) ) );
             sum += ( hist[i++] = (0xF & (code   ) ) );
+        } else if ((code>>12) == 13) {
+            sum += ( hist[i++] = (0x7 & (code>>9) ) );
+            sum += ( hist[i++] = (0x7 & (code>>6) ) );
+            sum += ( hist[i++] = (0x7 & (code>>3) ) );
+            sum += ( hist[i++] = (0x7 & (code   ) ) );
         } else {
             len = 0xFF &  code;
             he  = 0xF  & (code >> 8);
-            h0  = 0x3  & (code >> 12);
+            h0  = 0x1  & (code >> 12);
             
             for (len+=4; len>0; len--)        // repeat
                 sum += ( hist[i++] = h0 );
@@ -423,7 +427,7 @@ static void encodeHist (uint16_t **pp_buf, uint32_t hist[]) {
     uint32_t i, j, sum=0;
     
     for (i=0; i<=ANS_MVAL && sum<NORM_SUM ;) {
-        uint16_t code, len, h1, h2, he=0xFFFF, h0;
+        uint16_t code, len, h1, h2, h3, he=0xFFFF, h0;
         
         h0 = (uint16_t)hist[i];
         
@@ -435,18 +439,22 @@ static void encodeHist (uint16_t **pp_buf, uint32_t hist[]) {
         
         len = (uint16_t)(j - i);
         
-        if (h0<=2 && len>=4) {                                // repeat length >= 4
+        if (h0<=1 && len>=4) {                                // repeat length >= 4
             if (j<=ANS_MVAL && he<=15)                        // not reaches end, and he can repr by 4-bit
-                j ++;                                         // encode one more value (he, KKKK in case4)
+                j ++;                                         // encode one more value (he, KKKK in case5)
             else
                 he = h0;
-            code = (3<<14) | (h0<<12) | (he<<8) | (len-4);
+            code = (7<<13) | (h0<<12) | (he<<8) | (len-4);
         } else {
             h1 = (i+1<=ANS_MVAL) ? (uint16_t)hist[i+1] : 0xFFFF;
             h2 = (i+2<=ANS_MVAL) ? (uint16_t)hist[i+2] : 0xFFFF;
+            h3 = (i+3<=ANS_MVAL) ? (uint16_t)hist[i+3] : 0xFFFF;
             
-            if (h0<=15 && h1<=15 && h2<=15) {
-                code = (15<<12) | (h0<<8) | (h1<<4) | h2;
+            if        (h0<=7  && h1<=7  && h2<=7 && h3<=7) {
+                code = (13<<12) | (h0<<9) | (h1<<6) | (h2<<3) | h3;
+                j = i + 4;
+            } else if (h0<=15 && h1<=15 && h2<=15) {
+                code = (12<<12) | (h0<<8) | (h1<<4) | h2;
                 j = i + 3;
             } else if (h0<=127 && h1<=127) {
                 code =  (2<<14) | (h0<<7) |  h1;
@@ -465,28 +473,109 @@ static void encodeHist (uint16_t **pp_buf, uint32_t hist[]) {
 }
 
 
+#define   TITLE    "Q0.2"
 
-#define   HDR1     ( (((uint16_t)'0')<<8) + ((uint16_t)'Q') )
-#define   HDR2     ( (((uint16_t)'1')<<8) + ((uint16_t)'.') )
+#define   HDR1     ( (((uint16_t)TITLE[1])<<8) + ((uint16_t)TITLE[0]) )
+#define   HDR2     ( (((uint16_t)TITLE[3])<<8) + ((uint16_t)TITLE[2]) )
 
-#define   WHEADER(p_buf,height,width)  {                  \
-    W16BIT(p_buf, HDR1);                                  \
-    W16BIT(p_buf, HDR2);                                  \
-    W16BIT(p_buf, height);                                \
-    W16BIT(p_buf, width);                                 \
+#define   WHEADER(p_buf,height,width) {     \
+    W16BIT(p_buf, HDR1);                    \
+    W16BIT(p_buf, HDR2);                    \
+    W16BIT(p_buf, height);                  \
+    W16BIT(p_buf, width);                   \
 }
 
-static int RHEADER(uint16_t **pp_buf, int *p_height, int *p_width) {
-    uint16_t hdr1, hdr2;
-    R16BIT(*pp_buf, hdr1);
-    R16BIT(*pp_buf, hdr2);
-    if (hdr1 == HDR1 && hdr2 == HDR2) {
-        R16BIT(*pp_buf, *p_height);
-        R16BIT(*pp_buf, *p_width);
-        return checkSize(*p_height, *p_width);
-    } else {
+#define   RHEADER(p_buf,height,width,ret) { \
+    uint16_t hdr1, hdr2;                    \
+    R16BIT(p_buf, hdr1);                    \
+    R16BIT(p_buf, hdr2);                    \
+    if (hdr1 == HDR1 && hdr2 == HDR2) {     \
+        R16BIT(p_buf, height);              \
+        R16BIT(p_buf, width);               \
+        ret = checkSize(height, width);     \
+    } else {                                \
+        ret =  -1;                          \
+    }                                       \
+}
+
+
+
+// return :
+//                 0 : success
+//                -1 : failed
+int QNBLICdecompress (uint16_t *p_buf, UI8 *p_img, int *p_height, int *p_width) {
+    int  i, j, height, width;
+    int  ctx_array [N_CONTEXT] = {0};
+    UI8  tab_qd    [152];
+    UI8  tab_pt    [608];
+    uint32_t ans;
+    
+    uint32_t hist     [N_QD][ANS_MVAL+1];
+    uint32_t hist_acc [N_QD][ANS_MVAL+1];
+    
+    UI8 (*tab_dec) [NORM_SUM];
+    
+    RHEADER(p_buf, height, width, i);
+    
+    if (i)
         return -1;
+    
+    *p_height = height;
+    *p_width  = width;
+    
+    tab_dec = (UI8 (*) [NORM_SUM]) malloc (sizeof(UI8) * NORM_SUM * N_QD);
+    
+    if (tab_dec == NULL)
+        return -1;
+    
+    initQDLookupTable(tab_qd);
+    initPTLookupTable(tab_pt);
+    
+    for (i=0; i<N_QD; i++) {
+        decodeHist(&p_buf, hist[i]);
+        initHistAcc(hist[i], hist_acc[i]);
+        initDecodeLookupTable(tab_dec[i], hist_acc[i]);
     }
+    
+    ANS_DEC_START(ans, p_buf);
+    
+    for (i=0; i<height; i++) {
+        int x=0, a=0, b=0, c=0, d=0, e=0, f=0, g=0, h=0, q=0, r=0, s=0;
+        int err = 0;
+        
+        SAMPLE_PIXELS(p_img, width, i, 0, a, b, c, d, e, f, g, h, q, r, s);
+        
+        for (j=0; j<width; j++) {
+            int px0, px, qd, adr, ctx, sign, y;
+            
+            px0 = simplePredict(a, b, c, d, e, f, g, h, q, r, s, tab_pt);
+            
+            qd = ABS(a-e) + ABS(b-c) + ABS(b-d) + ABS(a-c) + ABS(b-f) + ABS(d-g) + 2*ABS(err);
+            qd = MIN(qd, 152-1);
+            qd = tab_qd[qd];
+            
+            GET_CONTEXT_ADDRESS(adr, a, b, c, d, e, f, px0, qd);
+            
+            ctx = ctx_array[adr];
+            CORRECT_PX(ctx, px0, px, sign);
+            
+            ANS_DEC(ans, p_buf, y, hist[qd], hist_acc[qd], tab_dec[qd]);
+            
+            x = mapYtoX(y, px, sign);
+            G2D(p_img, width, i, j) = (UI8)x;
+            
+            err = x - px0;
+            
+            UPDATE_CONTEXT(ctx, err);
+            ctx_array[adr] = ctx;
+            
+            SAMPLE_PIXELS_NEXT(p_img, width, i, j, x, a, b, c, d, e, f, g, h, q, r, s);
+        }
+    }
+    
+    free(tab_dec);
+    
+    return 0;
 }
 
 
@@ -494,11 +583,11 @@ static int RHEADER(uint16_t **pp_buf, int *p_height, int *p_width) {
 // return :
 //    positive value : compressed stream length
 //                -1 : failed
-int QNBLICcompress (uint16_t *p_buf, UI8 *p_img, int height, int width) {
+static int QNBLICcompressX (uint16_t *p_buf, UI8 *p_img, int height, int width) {
     int  i, j;
     int  ctx_array [N_CONTEXT] = {0};
-    UI8  tab_qd    [2048]; 
-    UI8  tab_pt    [1024];
+    UI8  tab_qd    [152]; 
+    UI8  tab_pt    [608];
     
     uint32_t hist     [N_QD][ANS_MVAL+1] = {{0}};
     uint32_t hist_acc [N_QD][ANS_MVAL+1];
@@ -519,24 +608,20 @@ int QNBLICcompress (uint16_t *p_buf, UI8 *p_img, int height, int width) {
     initPTLookupTable(tab_pt);
     
     for (i=0; i<height; i++) {
-        int a=0, b=0, c=0, d=0, e=0, f=0, g=0, h=0, q=0, r=0, s=0;
-        int x = 0;
+        int x=0, a=0, b=0, c=0, d=0, e=0, f=0, g=0, h=0, q=0, r=0, s=0;
         int err = 0;
+        
+        SAMPLE_PIXELS(p_img, width, i, 0, a, b, c, d, e, f, g, h, q, r, s);
         
         for (j=0; j<width; j++) {
             int px, qd, adr, ctx, sign, y;
-            
-            if (j == 0) {
-                SAMPLE_CAUSAL_PIXELS     (p_img, width, i, j, a, b, c, d, e, f, g, h, q, r, s);
-            } else {
-                SAMPLE_CAUSAL_PIXELS_MOVE(p_img, width, i, j, x, a, b, c, d, e, f, g, h, q, r, s);
-            }
             
             x = G2D(p_img, width, i, j);
             
             px = simplePredict(a, b, c, d, e, f, g, h, q, r, s, tab_pt);
             
             qd = ABS(a-e) + ABS(b-c) + ABS(b-d) + ABS(a-c) + ABS(b-f) + ABS(d-g) + 2*ABS(err);
+            qd = MIN(qd, 152-1);
             qd = tab_qd[qd];
             
             err = x - px;
@@ -556,6 +641,8 @@ int QNBLICcompress (uint16_t *p_buf, UI8 *p_img, int height, int width) {
             
             UPDATE_CONTEXT(ctx, err);
             ctx_array[adr] = ctx;
+            
+            SAMPLE_PIXELS_NEXT(p_img, width, i, j, x, a, b, c, d, e, f, g, h, q, r, s);
         }
     }
     
@@ -593,80 +680,235 @@ int QNBLICcompress (uint16_t *p_buf, UI8 *p_img, int height, int width) {
 
 
 
-// return :
-//                 0 : success
-//                -1 : failed
-int QNBLICdecompress (uint16_t *p_buf, UI8 *p_img, int *p_height, int *p_width) {
-    int  i, j, height, width;
-    int  ctx_array [N_CONTEXT] = {0};
-    UI8  tab_qd    [2048];
-    UI8  tab_pt    [1024];
-    uint32_t ans;
+
+#if  ((!ENABLE_MULTITHREAD) || (!defined(_WIN32)))   // multithread disabled, or not windows
+
+int QNBLICcompress (uint16_t *p_buf, UI8 *p_img, int height, int width) {
+    return QNBLICcompressX(p_buf, p_img, height, width);
+}
+
+#else         // windows, use multithread to speedup QNBLIC compressor
+
+
+//#include <stdio.h>
+#include <Windows.h>
+#include <process.h>
+
+
+#define N_THREAD      4
+
+
+typedef struct {
+    UI8     x;
+    UI8     px;
+    int16_t adr;
+} MetaData_t;
+
+
+typedef struct {
+    int         height;
+    int         width;
+    int         row_per_unit;
+    int         i_thd;
+    UI8        *p_img;
+    MetaData_t *p_meta;
+    HANDLE      semaphore;
+} ThreadArg_t;
+
+
+static void PredictThreadFunc (void* arg) {
+    UI8  tab_qd [152]; 
+    UI8  tab_pt [608];
     
-    uint32_t hist     [N_QD][ANS_MVAL+1];
-    uint32_t hist_acc [N_QD][ANS_MVAL+1];
+    int i, j, height, width, row_per_unit, i_thd;
+    UI8        *p_img;
+    MetaData_t *p_meta;
+    HANDLE      semaphore;
     
-    UI8 (*tab_dec) [NORM_SUM];
-    
-    if ( RHEADER(&p_buf, p_height, p_width) )
-        return -1;
-    
-    height = *p_height;
-    width  = *p_width;
-    
-    tab_dec = (UI8 (*) [NORM_SUM]) malloc (sizeof(UI8) * NORM_SUM * N_QD);
-    
-    if (tab_dec == NULL)
-        return -1;
+    height       = ((ThreadArg_t*)arg)->height;
+    width        = ((ThreadArg_t*)arg)->width;
+    row_per_unit = ((ThreadArg_t*)arg)->row_per_unit;
+    i_thd        = ((ThreadArg_t*)arg)->i_thd;
+    p_img        = ((ThreadArg_t*)arg)->p_img;
+    p_meta       = ((ThreadArg_t*)arg)->p_meta;
+    semaphore    = ((ThreadArg_t*)arg)->semaphore;
     
     initQDLookupTable(tab_qd);
     initPTLookupTable(tab_pt);
     
-    for (i=0; i<N_QD; i++) {
-        decodeHist(&p_buf, hist[i]);
-        initHistAcc(hist[i], hist_acc[i]);
-        initDecodeLookupTable(tab_dec[i], hist_acc[i]);
-    }
-    
-    ANS_DEC_START(ans, p_buf);
-    
-    for (i=0; i<height; i++) {
-        int a=0, b=0, c=0, d=0, e=0, f=0, g=0, h=0, q=0, r=0, s=0;
-        int x = 0;
+    for (i=i_thd*row_per_unit; i<height; ) {
+        int x=0, a=0, b=0, c=0, d=0, e=0, f=0, g=0, h=0, q=0, r=0, s=0;
         int err = 0;
         
+        SAMPLE_PIXELS(p_img, width, i, 0, a, b, c, d, e, f, g, h, q, r, s);
+        
         for (j=0; j<width; j++) {
-            int px0, px, qd, adr, ctx, sign, y;
+            int px, qd, adr;
             
-            if (j == 0) {
-                SAMPLE_CAUSAL_PIXELS     (p_img, width, i, j, a, b, c, d, e, f, g, h, q, r, s);
-            } else {
-                SAMPLE_CAUSAL_PIXELS_MOVE(p_img, width, i, j, x, a, b, c, d, e, f, g, h, q, r, s);
-            }
+            x = G2D(p_img, width, i, j);
             
-            px0 = simplePredict(a, b, c, d, e, f, g, h, q, r, s, tab_pt);
+            px = simplePredict(a, b, c, d, e, f, g, h, q, r, s, tab_pt);
             
             qd = ABS(a-e) + ABS(b-c) + ABS(b-d) + ABS(a-c) + ABS(b-f) + ABS(d-g) + 2*ABS(err);
+            qd = MIN(qd, 152-1);
             qd = tab_qd[qd];
             
-            GET_CONTEXT_ADDRESS(adr, a, b, c, d, e, f, px0, qd);
+            err = x - px;
+            
+            GET_CONTEXT_ADDRESS(adr, a, b, c, d, e, f, px, qd);
+            
+            p_meta->x   = (UI8)x;
+            p_meta->px  = (UI8)px;
+            p_meta->adr = (int16_t)adr;
+            p_meta ++;
+            
+            SAMPLE_PIXELS_NEXT(p_img, width, i, j, x, a, b, c, d, e, f, g, h, q, r, s);
+        }
+        
+        i++;
+        
+        if ((i%row_per_unit) == 0 || i==height) {
+            ReleaseSemaphore(semaphore, 1, NULL);
+            i += (N_THREAD-1) * row_per_unit;
+        }
+    }
+}
+
+
+static int QNBLICcompressMultiThread (uint16_t *p_buf, UI8 *p_img, int height, int width) {
+    int  i, j, i_thd, row_per_unit, unit_count, units_per_thread, row_per_thread;
+    int  ctx_array [N_CONTEXT] = {0};
+    
+    uint32_t hist     [N_QD][ANS_MVAL+1] = {{0}};
+    uint32_t hist_acc [N_QD][ANS_MVAL+1];
+    
+    uint16_t *p_buf_base = p_buf;
+    
+    MetaData_t *p_meta_base [N_THREAD];
+    MetaData_t *p_meta      [N_THREAD];
+    
+    ThreadArg_t threads_arg       [N_THREAD];
+    HANDLE      threads_semaphore [N_THREAD];
+    HANDLE      threads_handle    [N_THREAD];
+    
+    struct { UI8 qd; UI8 y; } *py_base, *py;
+    
+    if (checkSize(height, width))
+        return -1;
+    
+    py_base = py = malloc(height * width * sizeof(*py_base));
+    
+    if (py_base == NULL)
+        return -1;
+    
+    if      (width <= 2048)
+        row_per_unit = 16;
+    else if (width <= 4096)
+        row_per_unit = 8;
+    else if (width <= 8192)
+        row_per_unit = 4;
+    else if (width <= 16384)
+        row_per_unit = 2;
+    else
+        row_per_unit = 1;
+    
+    unit_count       = (height - 1 + row_per_unit) / row_per_unit;
+    units_per_thread = (unit_count  - 1 + N_THREAD) / N_THREAD;
+    row_per_thread   = units_per_thread * row_per_unit;
+    
+    //printf("    multithread config:  rpu=%d  u=%d  upt=%d  rpt=%d\n", row_per_unit, unit_count, units_per_thread, row_per_thread);
+    
+    for (i_thd=0; i_thd<N_THREAD; i_thd++) {
+        p_meta_base[i_thd] = p_meta[i_thd] = malloc(row_per_thread * width * sizeof(MetaData_t));
+        if ( p_meta[i_thd] == NULL)
+            return -1;
+        threads_semaphore[i_thd] = CreateSemaphore(NULL, 0, units_per_thread, NULL);
+    }
+    
+    for (i_thd=0; i_thd<N_THREAD; i_thd++) {
+        threads_arg[i_thd].height       = height;
+        threads_arg[i_thd].width        = width;
+        threads_arg[i_thd].row_per_unit = row_per_unit;
+        threads_arg[i_thd].i_thd        = i_thd;
+        threads_arg[i_thd].p_img        = p_img;
+        threads_arg[i_thd].p_meta       = p_meta[i_thd];
+        threads_arg[i_thd].semaphore    = threads_semaphore[i_thd];
+        threads_handle[i_thd] = (HANDLE)_beginthread(PredictThreadFunc, 0, (void*)(&threads_arg[i_thd]));
+    }
+    
+    for (i=0; i<height; i++) {
+        i_thd = (i/row_per_unit) % N_THREAD;
+        
+        if ((i%row_per_unit) == 0)
+            WaitForSingleObject(threads_semaphore[i_thd], INFINITE);
+        
+        for (j=0; j<width; j++) {
+            int x, px0, px, qd, adr, ctx, sign, y;
+            
+            x   = p_meta[i_thd]->x;
+            px0 = p_meta[i_thd]->px;
+            adr = p_meta[i_thd]->adr;
+            p_meta[i_thd] ++;
+            
+            qd = adr >> 8;
             
             ctx = ctx_array[adr];
-            CORRECT_PX(ctx, px, px0, sign);
-            
-            ANS_DEC(ans, p_buf, y, hist[qd], hist_acc[qd], tab_dec[qd]);
-            
-            x = mapYtoX(y, px, sign);
-            G2D(p_img, width, i, j) = (UI8)x;
-            
-            err = x - px0;
-            
-            UPDATE_CONTEXT(ctx, err);
+            CORRECT_PX(ctx, px0, px, sign);
+            UPDATE_CONTEXT(ctx, (x-px0));
             ctx_array[adr] = ctx;
+            
+            y = mapXtoY(x, px, sign);
+            
+            py->qd = (UI8)qd;
+            py->y  = (UI8)y;
+            py ++;
+            
+            hist[qd][y] ++;
         }
     }
     
-    free(tab_dec);
+    for (i_thd=0; i_thd<N_THREAD; i_thd++) {
+        WaitForSingleObject(threads_handle[i_thd], INFINITE);  // end of subthreads
+        free(p_meta_base[i_thd]);
+    }
     
-    return 0;
+    WHEADER(p_buf, height, width);
+    
+    for (i=0; i<N_QD; i++) {
+        normHist(hist[i]);
+        initHistAcc(hist[i], hist_acc[i]);
+        encodeHist(&p_buf, hist[i]);
+    }
+    
+    {
+        uint16_t *p_buf_start = p_buf;
+        uint32_t ans = ANS_ENC_INIT_VALUE;
+        
+        for (py--; py>=py_base; py--) {
+            UI8 qd = py->qd;
+            UI8 y  = py->y;
+            uint32_t h  = hist[qd][y];
+            uint32_t ha = hist_acc[qd][y];
+            ANS_ENC(ans, p_buf, h, ha);
+        }
+        
+        ANS_ENC_FIN(ans, p_buf);
+        
+        reverseWords(p_buf_start, p_buf);
+    }
+    
+    free(py_base);
+    
+    return p_buf - p_buf_base;
 }
+
+
+int QNBLICcompress (uint16_t *p_buf, UI8 *p_img, int height, int width) {
+    if (height >= 512 && (height*width) > (512*512))                // use multithread only when image is large enough
+        return QNBLICcompressMultiThread(p_buf, p_img, height, width);
+    else
+        return QNBLICcompressX          (p_buf, p_img, height, width);
+}
+
+
+#endif

@@ -33,7 +33,7 @@ const char *USAGE =
   "|                                                                            |\n"
   "|----------------------------------------------------------------------------|\n"
   "| To decompress:                                                             |\n"
-  "|   nblic_codec -d <input-file(.nblic)> <output-image-file>                  |\n"
+  "|   nblic_codec -d [-swiches] <input-file(.nblic)> <output-image-file>       |\n"
   "|     where:                                                                 |\n"
   "|            <input-file>        can only be .nblic                          |\n"
   "|            <output-image-file> can be .pgm, .pnm, or .bmp                  |\n"
