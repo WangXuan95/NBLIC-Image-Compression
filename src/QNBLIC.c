@@ -8,6 +8,8 @@ typedef    unsigned char          UI8;
 
 #define    ENABLE_MULTITHREAD     1
 
+#define    WINDOWS_MULTITHREAD    (ENABLE_MULTITHREAD && defined(_WIN32))                // multithread enabled, and system is Windows
+
 #define    ABS(x)                 ( ((x)<0) ? (-(x)) : (x) )                             // get absolute value
 #define    CLIP(x,a,b)            ( ((x)<(a)) ? (a) : (((x)>(b)) ? (b) : (x)) )          // clip x between a~b
 #define    MIN(a,b)               ( ((a)<(b)) ? (a) : (b) )
@@ -78,16 +80,13 @@ static int checkSize (int height, int width) {
 
 
 static void initPTLookupTable (UI8 tab[]) {
+    const static int pt_thresh [8] = {5, 12, 34, 78, 194, 431, 601, 608};
     int i;
-    for (i=0; i<608; i++) {
-        if      (i <= 4  ) tab[i] = 0;
-        else if (i <= 11 ) tab[i] = 1;
-        else if (i <= 33 ) tab[i] = 2;
-        else if (i <= 77 ) tab[i] = 3;
-        else if (i <= 193) tab[i] = 4;
-        else if (i <= 430) tab[i] = 5;
-        else if (i <= 600) tab[i] = 6;
-        else               tab[i] = 7;
+    for (i=0; i<8; i++) {
+        int s = (i>0) ? pt_thresh[i-1] : 0;
+        int e =         pt_thresh[i];
+        for (; s<e; s++)
+            tab[s] = i;
     }
 }
 
@@ -150,21 +149,14 @@ static int simplePredict (int a, int b, int c, int d, int e, int f, int g, int h
 }
 
 
-static void initQDLookupTable (UI8 tab_qd[]) {
+static void initQDLookupTable (UI8 tab[]) {
+    const static int qd_thresh [N_QD] = {1, 2, 4, 6, 9, 15, 25, 39, 63, 101, 151, 152};
     int i;
-    for (i=0; i<152; i++) {
-        if      (i <= 0  ) tab_qd[i] = 0;
-        else if (i <= 1  ) tab_qd[i] = 1;
-        else if (i <= 3  ) tab_qd[i] = 2;
-        else if (i <= 5  ) tab_qd[i] = 3;
-        else if (i <= 8  ) tab_qd[i] = 4;
-        else if (i <= 14 ) tab_qd[i] = 5;
-        else if (i <= 24 ) tab_qd[i] = 6;
-        else if (i <= 38 ) tab_qd[i] = 7;
-        else if (i <= 62 ) tab_qd[i] = 8;
-        else if (i <= 100) tab_qd[i] = 9;
-        else if (i <= 150) tab_qd[i] =10;
-        else               tab_qd[i] =11;
+    for (i=0; i<N_QD; i++) {
+        int s = (i>0) ? qd_thresh[i-1] : 0;
+        int e =         qd_thresh[i];
+        for (; s<e; s++)
+            tab[s] = i;
     }
 }
 
@@ -226,17 +218,73 @@ static int mapYtoX (int z, int px, int sign) {
 
 
 
+#define   NORM_BITS             15
+#define   NORM_MASK             ((1 << NORM_BITS) - 1)
+#define   NORM_SUM              ((1 << NORM_BITS)    )              // sum of normalized histogram
 
-#define    NORM_BITS            15
-#define    NORM_MASK            ((1 << NORM_BITS) - 1)
-#define    NORM_SUM             ((1 << NORM_BITS)    )              // sum of normalized histogram
+#define   ANS_MVAL              MAX_VAL
 
-#define    ANS_MVAL             MAX_VAL
+#define   ANS_BITS              16
+#define   ANS_MASK              ((1 << (  ANS_BITS)) - 1)
+#define   ANS_LOW_BOUND         ((1 << (  ANS_BITS))    )
+#define   ANS_HIGH_BOUND_NORM   ((1 << (2*ANS_BITS-NORM_BITS)) - 1)
+#define   ANS_ENC_INIT_VALUE    ANS_LOW_BOUND
 
-#define    ANS_BITS             16
-#define    ANS_MASK             ((1 << (  ANS_BITS)) - 1)
-#define    ANS_LOW_BOUND        ((1 << (  ANS_BITS))    )
-#define    ANS_HIGH_BOUND_NORM  ((1 << (2*ANS_BITS-NORM_BITS)) - 1)
+#define   W16BIT(p_buf,value)   { (*((p_buf)++)) = (uint16_t)(value); }
+#define   R16BIT(p_buf,value)   { (value) = (*((p_buf)++)); }
+#define   ROR16BIT(p_buf,value) { (value)|= (*((p_buf)++)); }
+
+
+#define   ANS_ENC(ans,p_buf,h,hacc)  {                    \
+    uint32_t dans = (ans) / (h);                          \
+    if (dans > ANS_HIGH_BOUND_NORM) {                     \
+        W16BIT(p_buf, (ANS_MASK & (ans)));                \
+        (ans) >>= ANS_BITS;                               \
+        dans = (ans) / (h);                               \
+    }                                                     \
+    (ans) %= (h);                                         \
+    (ans) += (dans << NORM_BITS) + (hacc);                \
+}
+
+
+#define   ANS_ENC_FIN(ans,p_buf)  {                       \
+    W16BIT(p_buf, (ANS_MASK &  (ans)           ));        \
+    W16BIT(p_buf, (ANS_MASK & ((ans)>>ANS_BITS)));        \
+}
+
+
+#define   ANS_DEC_START(ans,p_buf)  {                     \
+    R16BIT(  p_buf, ans);                                 \
+    (ans) <<= ANS_BITS;                                   \
+    ROR16BIT(p_buf, ans);                                 \
+}
+
+
+#define  ANS_DEC(ans,p_buf,value,hist,hist_acc,tab_dec) { \
+    uint32_t lb = ans & NORM_MASK;                        \
+    value = tab_dec[lb];                                  \
+    ans >>= NORM_BITS;                                    \
+    ans  *= hist[value];                                  \
+    ans  += lb;                                           \
+    ans  -= hist_acc[value];                              \
+    if (ans < ANS_LOW_BOUND) {                            \
+        ans <<= ANS_BITS;                                 \
+        ROR16BIT(p_buf, ans);                             \
+    }                                                     \
+}
+
+
+static void reverseWords (uint16_t *p_start, uint16_t *p_end) {
+    uint16_t tmp;
+    p_end --;
+    while (p_start < p_end) {
+        tmp = *p_start;
+        *p_start = *p_end;
+        *p_end = tmp;
+        p_start ++;
+        p_end   --;
+    }
+}
 
 
 static void initHistAcc (uint32_t hist[], uint32_t hist_acc[]) {
@@ -306,68 +354,6 @@ static void normHist (uint32_t hist[]) {
                 sum ++;
             }
         }
-    }
-}
-
-
-
-#define   W16BIT(p_buf,value)   { (*((p_buf)++)) = (uint16_t)(value); }
-#define   R16BIT(p_buf,value)   { (value) = (*((p_buf)++)); }
-#define   ROR16BIT(p_buf,value) { (value)|= (*((p_buf)++)); }
-
-
-#define   ANS_ENC(ans,p_buf,h,hacc)  {                    \
-    uint32_t dans = (ans) / (h);                          \
-    if (dans > ANS_HIGH_BOUND_NORM) {                     \
-        W16BIT(p_buf, (ANS_MASK & (ans)));                \
-        (ans) >>= ANS_BITS;                               \
-        dans = (ans) / (h);                               \
-    }                                                     \
-    (ans) %= (h);                                         \
-    (ans) += (dans << NORM_BITS) + (hacc);                \
-}
-
-
-#define   ANS_ENC_INIT_VALUE     ANS_LOW_BOUND
-
-
-#define   ANS_ENC_FIN(ans,p_buf)  {                       \
-    W16BIT(p_buf, (ANS_MASK &  (ans)           ));        \
-    W16BIT(p_buf, (ANS_MASK & ((ans)>>ANS_BITS)));        \
-}
-
-
-#define   ANS_DEC_START(ans,p_buf)  {                     \
-    R16BIT(  p_buf, ans);                                 \
-    (ans) <<= ANS_BITS;                                   \
-    ROR16BIT(p_buf, ans);                                 \
-}
-
-
-#define  ANS_DEC(ans,p_buf,value,hist,hist_acc,tab_dec) { \
-    uint32_t lb = ans & NORM_MASK;                        \
-    value = tab_dec[lb];                                  \
-    ans >>= NORM_BITS;                                    \
-    ans  *= hist[value];                                  \
-    ans  += lb;                                           \
-    ans  -= hist_acc[value];                              \
-    if (ans < ANS_LOW_BOUND) {                            \
-        ans <<= ANS_BITS;                                 \
-        ROR16BIT(p_buf, ans);                             \
-    }                                                     \
-}
-
-
-
-static void reverseWords (uint16_t *p_start, uint16_t *p_end) {
-    uint16_t tmp;
-    p_end --;
-    while (p_start < p_end) {
-        tmp = *p_start;
-        *p_start = *p_end;
-        *p_end = tmp;
-        p_start ++;
-        p_end   --;
     }
 }
 
@@ -473,6 +459,7 @@ static void encodeHist (uint16_t **pp_buf, uint32_t hist[]) {
 }
 
 
+
 #define   TITLE    "Q0.2"
 
 #define   HDR1     ( (((uint16_t)TITLE[1])<<8) + ((uint16_t)TITLE[0]) )
@@ -504,7 +491,7 @@ static void encodeHist (uint16_t **pp_buf, uint32_t hist[]) {
 //                 0 : success
 //                -1 : failed
 int QNBLICdecompress (uint16_t *p_buf, UI8 *p_img, int *p_height, int *p_width) {
-    int  i, j, height, width;
+    int  i, j;
     int  ctx_array [N_CONTEXT] = {0};
     UI8  tab_qd    [152];
     UI8  tab_pt    [608];
@@ -513,20 +500,11 @@ int QNBLICdecompress (uint16_t *p_buf, UI8 *p_img, int *p_height, int *p_width) 
     uint32_t hist     [N_QD][ANS_MVAL+1];
     uint32_t hist_acc [N_QD][ANS_MVAL+1];
     
-    UI8 (*tab_dec) [NORM_SUM];
+    UI8 tab_dec [N_QD][NORM_SUM];
     
-    RHEADER(p_buf, height, width, i);
+    RHEADER(p_buf, (*p_height), (*p_width), i);
     
-    if (i)
-        return -1;
-    
-    *p_height = height;
-    *p_width  = width;
-    
-    tab_dec = (UI8 (*) [NORM_SUM]) malloc (sizeof(UI8) * NORM_SUM * N_QD);
-    
-    if (tab_dec == NULL)
-        return -1;
+    if (i) return -1;
     
     initQDLookupTable(tab_qd);
     initPTLookupTable(tab_pt);
@@ -539,13 +517,13 @@ int QNBLICdecompress (uint16_t *p_buf, UI8 *p_img, int *p_height, int *p_width) 
     
     ANS_DEC_START(ans, p_buf);
     
-    for (i=0; i<height; i++) {
+    for (i=0; i<(*p_height); i++) {
         int x=0, a=0, b=0, c=0, d=0, e=0, f=0, g=0, h=0, q=0, r=0, s=0;
         int err = 0;
         
-        SAMPLE_PIXELS(p_img, width, i, 0, a, b, c, d, e, f, g, h, q, r, s);
+        SAMPLE_PIXELS(p_img, (*p_width), i, 0, a, b, c, d, e, f, g, h, q, r, s);
         
-        for (j=0; j<width; j++) {
+        for (j=0; j<(*p_width); j++) {
             int px0, px, qd, adr, ctx, sign, y;
             
             px0 = simplePredict(a, b, c, d, e, f, g, h, q, r, s, tab_pt);
@@ -562,18 +540,16 @@ int QNBLICdecompress (uint16_t *p_buf, UI8 *p_img, int *p_height, int *p_width) 
             ANS_DEC(ans, p_buf, y, hist[qd], hist_acc[qd], tab_dec[qd]);
             
             x = mapYtoX(y, px, sign);
-            G2D(p_img, width, i, j) = (UI8)x;
+            G2D(p_img, (*p_width), i, j) = (UI8)x;
             
             err = x - px0;
             
             UPDATE_CONTEXT(ctx, err);
             ctx_array[adr] = ctx;
             
-            SAMPLE_PIXELS_NEXT(p_img, width, i, j, x, a, b, c, d, e, f, g, h, q, r, s);
+            SAMPLE_PIXELS_NEXT(p_img, (*p_width), i, j, x, a, b, c, d, e, f, g, h, q, r, s);
         }
     }
-    
-    free(tab_dec);
     
     return 0;
 }
@@ -583,7 +559,7 @@ int QNBLICdecompress (uint16_t *p_buf, UI8 *p_img, int *p_height, int *p_width) 
 // return :
 //    positive value : compressed stream length
 //                -1 : failed
-static int QNBLICcompressX (uint16_t *p_buf, UI8 *p_img, int height, int width) {
+int QNBLICcompress (uint16_t *p_buf, UI8 *p_img, int height, int width) {
     int  i, j;
     int  ctx_array [N_CONTEXT] = {0};
     UI8  tab_qd    [152]; 
@@ -654,7 +630,7 @@ static int QNBLICcompressX (uint16_t *p_buf, UI8 *p_img, int height, int width) 
         encodeHist(&p_buf, hist[i]);
     }
     
-    //printf("    header+hist len = %ld B\n", 2*(p_buf-p_buf_base));
+    //printf("    header+hist length = %ld B\n", 2*(p_buf-p_buf_base));
     
     {
         uint16_t *p_buf_start = p_buf;
@@ -681,29 +657,18 @@ static int QNBLICcompressX (uint16_t *p_buf, UI8 *p_img, int height, int width) 
 
 
 
-#if  ((!ENABLE_MULTITHREAD) || (!defined(_WIN32)))   // multithread disabled, or not windows
+#if       WINDOWS_MULTITHREAD
 
-int QNBLICcompress (uint16_t *p_buf, UI8 *p_img, int height, int width) {
-    return QNBLICcompressX(p_buf, p_img, height, width);
-}
-
-#else         // windows, use multithread to speedup QNBLIC compressor
-
-
-//#include <stdio.h>
 #include <Windows.h>
 #include <process.h>
 
-
-#define N_THREAD      4
-
+#define N_THREAD  4
 
 typedef struct {
     UI8     x;
     UI8     px;
     int16_t adr;
 } MetaData_t;
-
 
 typedef struct {
     int         height;
@@ -715,8 +680,7 @@ typedef struct {
     HANDLE      semaphore;
 } ThreadArg_t;
 
-
-static void PredictThreadFunc (void* arg) {
+static void PredictThreadFuncWindows (void* arg) {
     UI8  tab_qd [152]; 
     UI8  tab_pt [608];
     
@@ -774,8 +738,7 @@ static void PredictThreadFunc (void* arg) {
     }
 }
 
-
-static int QNBLICcompressMultiThread (uint16_t *p_buf, UI8 *p_img, int height, int width) {
+static int QNBLICcompressMultiThreadWindows (uint16_t *p_buf, UI8 *p_img, int height, int width) {
     int  i, j, i_thd, row_per_unit, unit_count, units_per_thread, row_per_thread;
     int  ctx_array [N_CONTEXT] = {0};
     
@@ -833,7 +796,7 @@ static int QNBLICcompressMultiThread (uint16_t *p_buf, UI8 *p_img, int height, i
         threads_arg[i_thd].p_img        = p_img;
         threads_arg[i_thd].p_meta       = p_meta[i_thd];
         threads_arg[i_thd].semaphore    = threads_semaphore[i_thd];
-        threads_handle[i_thd] = (HANDLE)_beginthread(PredictThreadFunc, 0, (void*)(&threads_arg[i_thd]));
+        threads_handle[i_thd] = (HANDLE)_beginthread(PredictThreadFuncWindows, 0, (void*)(&threads_arg[i_thd]));
     }
     
     for (i=0; i<height; i++) {
@@ -902,13 +865,20 @@ static int QNBLICcompressMultiThread (uint16_t *p_buf, UI8 *p_img, int height, i
     return p_buf - p_buf_base;
 }
 
+#endif // WINDOWS_MULTITHREAD
 
-int QNBLICcompress (uint16_t *p_buf, UI8 *p_img, int height, int width) {
-    if (height >= 512 && (height*width) > (512*512))                // use multithread only when image is large enough
-        return QNBLICcompressMultiThread(p_buf, p_img, height, width);
-    else
-        return QNBLICcompressX          (p_buf, p_img, height, width);
+
+
+int QNBLICcompressMultiThread (uint16_t *p_buf, UI8 *p_img, int height, int width) {
+    if (height >= 512 && (height*width) > (512*512)) {  // use multithread only when image is large enough
+        #if WINDOWS_MULTITHREAD
+        return QNBLICcompressMultiThreadWindows(p_buf, p_img, height, width);
+        #else
+        // linux multithread compressor is to be implemented later.
+        return QNBLICcompress(p_buf, p_img, height, width);
+        #endif
+    } else {
+        return QNBLICcompress(p_buf, p_img, height, width);
+    }
 }
 
-
-#endif

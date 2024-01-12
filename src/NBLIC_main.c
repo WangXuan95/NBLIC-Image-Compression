@@ -23,8 +23,9 @@ const char *USAGE =
   "|            -n<number> : near, can be 0 (lossless) or 1,2,3,... (lossy)     |\n"
   "|            -e<number> : effort, can be 0 (fastest), 1, 2, or 3 (slowest)   |\n"
   "|                         note: when using lossy(near>0), effort cannot be 0 |\n"
-  "|            -v         : verbose, print infomations                         |\n"
-  "|            -V         : verbose, print infomations and progress            |\n"
+  "|            -v : verbose, print infomations                                 |\n"
+  "|            -V : verbose, print infomations and progress                    |\n"
+  "|            -t : multithread speedup, currently only support -e0 on Windows |\n"
   "|                                                                            |\n"
   "| compression examples :                                                     |\n"
   "|   fastest lossless:    ./nblic_codec -c -V -n0 -e0 in.bmp out.nblic        |\n"
@@ -38,8 +39,8 @@ const char *USAGE =
   "|            <input-file>        can only be .nblic                          |\n"
   "|            <output-image-file> can be .pgm, .pnm, or .bmp                  |\n"
   "|     swiches:                                                               |\n"
-  "|            -v         : verbose, print infomations                         |\n"
-  "|            -V         : verbose, print infomations and progress            |\n"
+  "|            -v : verbose, print infomations                                 |\n"
+  "|            -V : verbose, print infomations and progress                    |\n"
   "|                                                                            |\n"
   "| decompression example :   ./nblic_codec -d -V in.nblic out.bmp             |\n"
   "|                                                                            |\n"
@@ -48,17 +49,17 @@ const char *USAGE =
 
 
 
-static void parseSwitches (char *arg, int *p_d, int *p_n, int *p_e, int *p_v) {
+static void parseSwitches (char *arg, int *p_d, int *p_n, int *p_e, int *p_v, int *p_t) {
     for (; arg[0]; arg++) {
         switch (arg[0]) {
             case 'c' :
             case 'C' :
-                *p_d = 0;     // compress
+                *p_d = 0;  // compress
                 break;
             
             case 'd' :
             case 'D' :
-                *p_d = 1;     // decompress
+                *p_d = 1;  // decompress
                 break;
             
             case 'v' :
@@ -84,19 +85,24 @@ static void parseSwitches (char *arg, int *p_d, int *p_n, int *p_e, int *p_v) {
                     (*p_e) = (arg[1] - '0');
                 arg ++;
                 break;
+            
+            case 't' :
+            case 'T' :
+                *p_t = 1;  // enable multithread
+                break;
         }
     }
 }
 
 
-static void parseCommand (int argc, char **argv, char **pp_src_fname, char **pp_dst_fname, int *p_d, int *p_n, int *p_e, int *p_v) {
+static void parseCommand (int argc, char **argv, char **pp_src_fname, char **pp_dst_fname, int *p_d, int *p_n, int *p_e, int *p_v, int *p_t) {
     int i;
     
     for (i=1; i<argc; i++) {
         char *arg = argv[i];
         
         if      (arg[0] == '-')
-            parseSwitches(&arg[1], p_d, p_n, p_e, p_v);
+            parseSwitches(&arg[1], p_d, p_n, p_e, p_v, p_t);
         else if (*pp_src_fname == NULL)
             *pp_src_fname = arg;
         else
@@ -140,12 +146,13 @@ int main (int argc, char **argv) {
     int near       = 0;
     int effort     = 1;
     int verbose    = 0;
+    int multithread= 0;
     int height     =-1;
     int width      =-1;
     int len        =-1;
     int is_bmp     =0;
     
-    parseCommand(argc, argv, &p_src_fname, &p_dst_fname, &decompress, &near, &effort, &verbose);
+    parseCommand(argc, argv, &p_src_fname, &p_dst_fname, &decompress, &near, &effort, &verbose, &multithread);
     
     if (p_src_fname==NULL || p_dst_fname==NULL) {
         printf(USAGE);
@@ -172,10 +179,14 @@ int main (int argc, char **argv) {
             printf("  input image shape  = %d x %d\n" , width, height );
         }
         
-        if (near==0 && effort==0)
-            len = 2 * QNBLICcompress(buf, img, height, width);
-        else
+        if (near==0 && effort==0) {
+            if (multithread)
+                len = 2 * QNBLICcompressMultiThread(buf, img, height, width);
+            else
+                len = 2 * QNBLICcompress(buf, img, height, width);
+        } else {
             len = NBLICcompress((verbose>1), (unsigned char*)buf, img, height, width, &near, &effort);
+        }
         
         if (len < 0) {
             printf("  ***Error : compress failed\n");

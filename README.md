@@ -84,6 +84,7 @@ nblic_codec -c [-swiches] <input-image-file> <output-file(.nblic)>
                  note: when using lossy (near>0), effort cannot be 0
     -v         : verbose, print infomations
     -V         : verbose, print infomations and progress
+    -t         : multithread speedup, currently only support -e0 on Windows
 ```
 
 For example :
@@ -92,6 +93,12 @@ fastest lossless compression:
 
 ```bash
 ./nblic_codec -c -V -n0 -e0 in.bmp out.nblic
+```
+
+fastest lossless compression with multithread speedup:
+
+```bash
+./nblic_codec -c -V -n0 -e0 -t in.bmp out.nblic
 ```
 
 slowest lossless compression:
@@ -104,6 +111,12 @@ slow lossy compression:
 
 ```bash
 ./nblic_codec -c -V -n2 -e2 in.bmp out.nblic
+```
+
+Note: There is no requirement for the order of switches. Compact switches are also supported, such as:
+
+```bash
+./nblic_codec -cn2e2V in.bmp out.nblic
 ```
 
 ### To decompress
@@ -121,7 +134,7 @@ nblic_codec -d [-swiches] <input-file(.nblic)> <output-image-file>
 For example:
 
 ```bash
-./nblic_codec -d -V in.nblic out.bmp
+./nblic_codec -dV in.nblic out.bmp
 ```
 
 　
@@ -180,7 +193,7 @@ Note that since I use Python's pillow library to encode/decode some formats, som
 |   WEBP lossless   |   Python    | `img.save('a.webp', lossless=True, method=6)`          |
 |       CALIC       | Windows CMD | `calic8e.exe a.raw <width> <height> <depth> 0 a.calic` |
 |      JPEG-XL      | Windows CMD | `cjxl.exe a.pgm a.jxl -q 100 -e 9`                     |
-|  **NBLIC** (-e?)  | Windows CMD | `nblic_codec.exe -c -V -n0 -e? a.pgm a.nblic`          |
+|  **NBLIC** (-e?)  | Windows CMD | `nblic_codec.exe -cVtn0e? a.pgm a.nblic`               |
 
 　
 
@@ -197,7 +210,7 @@ Decoding commands are simple, as shown in following table.
 |   WEBP lossless   |   Python    | `numpy.asarray(Image.open('a.webp'))` |
 |       CALIC       | Windows CMD | `calic8d.exe a.calic a.raw`           |
 |      JPEG-XL      | Windows CMD | `djxl.exe a.jxl a.pgm`                |
-|     **NBLIC**     | Windows CMD | `nblic_codec.exe -d -V a.nblic a.pgm` |
+|     **NBLIC**     | Windows CMD | `nblic_codec.exe -dV a.nblic a.pgm`   |
 
 　
 

@@ -28,10 +28,10 @@ def callCodec (input_fname, output_fname, decompress, near=0, windows=1) :
     
     mode = '-d' if (decompress) else '-c'
     
-    if windows :    # windows
-        command = CODEC_EXE_FILE + ' ' + mode + ' ' + '-e'+str(effort) + ' ' + '-n'+str(near) + ' ' + input_fname + ' ' + output_fname
-    else :          # linux (WSL, windows subsystem for linux)
-        command = 'wsl ' + CODEC_BIN_FILE + ' ' + mode + ' ' + '-e'+str(effort) + ' ' + '-n'+str(near) + ' ' + input_fname + ' ' + output_fname
+    if windows :
+        command =          CODEC_EXE_FILE + ' ' + mode + ' -t ' + '-e'+str(effort) + ' ' + '-n'+str(near) + ' ' + input_fname + ' ' + output_fname
+    else : # linux (WSL, windows subsystem for linux)
+        command = 'wsl ' + CODEC_BIN_FILE + ' ' + mode + ' -t ' + '-e'+str(effort) + ' ' + '-n'+str(near) + ' ' + input_fname + ' ' + output_fname
     
     return os.system(command)
 

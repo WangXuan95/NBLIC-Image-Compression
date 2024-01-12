@@ -11,10 +11,10 @@
 #define    QNBLIC_MAX_IMG_SIZE  100000000
 
 
-extern int QNBLICcompress   (uint16_t *p_buf, unsigned char *p_img, int height, int width);
+extern int QNBLICdecompress          (uint16_t *p_buf, unsigned char *p_img, int *p_height, int *p_width);
 
+extern int QNBLICcompress            (uint16_t *p_buf, unsigned char *p_img, int height, int width);
 
-extern int QNBLICdecompress (uint16_t *p_buf, unsigned char *p_img, int *p_height, int *p_width);
-
+extern int QNBLICcompressMultiThread (uint16_t *p_buf, unsigned char *p_img, int height, int width);
 
 #endif // __QNBLIC_H__
