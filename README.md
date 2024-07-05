@@ -4,7 +4,7 @@
 
 NBLIC is a lossless & near-lossless gray 8-bit image compression algorithm with high compression ratio.
 
-see [Here](#Comparison) and [Gray 8-bit Lossless Compression Bench](http://home.ustc.edu.cn/~wgg/gray8_LPCB.html) for comparison to other image formats.
+see [Here](#Comparison) and [Gray 8-bit Lossless Compression Bench](https://github.com/WangXuan95/Gray8bit-Image-Compression-Benchmark) for comparison to other image formats.
 
 ### Features
 
@@ -153,7 +153,7 @@ In Windows, just use `.\nblic_codec.exe` instead of `./nblic_codec` .
 
 This section presents the results of comparing **NBLIC** (this design) to other lossless image compression formats.
 
-*Note: for more comparison result, see [Gray 8-bit Lossless Compression Bench](http://home.ustc.edu.cn/~wgg/gray8_LPCB.html).*
+*Note: for more comparison result, see [Gray 8-bit Lossless Compression Bench](https://github.com/WangXuan95/Gray8bit-Image-Compression-Benchmark).*
 
 ## Formats for participating in comparison
 
