@@ -33,7 +33,16 @@ int loadBytesFromFile (const char *p_filename, unsigned char *p_buf, int len_lim
     if ( (fp = fopen(p_filename, "rb")) == NULL )
         return -1;
     
-    len = fread(p_buf, sizeof(unsigned char), len_limit, fp);
+    fseek(fp, 0, SEEK_END);
+    len = ftell(fp);
+    
+    if (len > len_limit) {
+        fclose(fp);
+        return -1;
+    }
+    
+    fseek(fp, 0, SEEK_SET);
+    len_limit = fread(p_buf, sizeof(unsigned char), len, fp);
     
     if (fgetc(fp) != EOF) {             // there are still some data in the file
         fclose(fp);
@@ -42,7 +51,7 @@ int loadBytesFromFile (const char *p_filename, unsigned char *p_buf, int len_lim
     
     fclose(fp);
     
-    return (len > len_limit) ? -1 : len;
+    return (len != len_limit) ? -1 : len;
 }
 
 

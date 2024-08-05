@@ -348,7 +348,7 @@ static void normHist (uint32_t hist[]) {
             }
         }
         
-        for (j=0; sum<NORM_SUM; i=((i+1)%(ANS_MVAL+1)) ) {
+        for (i=0; sum<NORM_SUM; i=((i+1)%(ANS_MVAL+1)) ) {
             if (hist[i] > 0) {
                 hist[i] ++;
                 sum ++;
